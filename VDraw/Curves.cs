@@ -203,20 +203,60 @@ public partial class CurveShape : Shape
 		Fill.Enabled = false;
 	}
 
+	/// <summary>
+	/// Габариты кривой БЕЗ контрольных точек.
+	///
+	/// Прежде коробка считалась по узлам И по их ручкам. Ручка стоит там,
+	/// где удобно задавать кривизну, и от самой кривой может отстоять
+	/// далеко: у дуги с длинными ручками коробка выходила в полтора-два
+	/// раза больше видимой фигуры. Пользователь же видит кривую, а не
+	/// ручки, и ждёт, что рамка выделения, изменение размера и рамочный
+	/// выбор считаются по ней.
+	///
+	/// TightBounds решает кубику и конику аналитически и даёт коробку
+	/// по самой кривой. SKPath.Bounds так не умеет: это и есть коробка
+	/// по контрольным точкам, то есть ровно то, от чего мы уходим.
+	/// </summary>
 	public override SKRect GetLocalBounds()
 	{
 		if (Nodes.Count == 0)
 			return SKRect.Empty;
 
-		var pts = new List<SKPoint>(Nodes.Count * 3);
-		foreach (var n in Nodes)
-		{
-			pts.Add(n.Position);
-			if (n.HasPrevControl) pts.Add(n.ControlPrev);
-			if (n.HasNextControl) pts.Add(n.ControlNext);
-		}
+		using var path = BuildLocalPath();
 
-		return RectFromPoints(pts);
+		var tight = path.TightBounds;
+
+		// Одиночный узел и вырожденные контуры дают пустую коробку: у них
+		// нет ни длины, ни ширины. Чтобы фигура не исчезла из габаритов
+		// совсем, в этом случае берутся сами узлы.
+		if (tight.Width <= 0f && tight.Height <= 0f)
+			return RectFromPoints(Nodes.Select(n => n.Position));
+
+		return tight;
+	}
+
+	/// <summary>
+	/// Мировые габариты — тоже по кривой, а не по контрольным точкам.
+	///
+	/// Базовая реализация берёт SKPath.Bounds, то есть коробку
+	/// по контрольным точкам. Повернуть локальную коробку вместо этого
+	/// нельзя: осевая коробка повёрнутой кривой — не повёрнутая коробка,
+	/// поэтому путь строится сразу в мировых координатах, и TightBounds
+	/// берётся по нему.
+	/// </summary>
+	public override SKRect GetBounds()
+	{
+		if (Nodes.Count == 0)
+			return SKRect.Empty;
+
+		using var path = BuildWorldPath();
+
+		var tight = path.TightBounds;
+
+		if (tight.Width <= 0f && tight.Height <= 0f)
+			return RectFromPoints(Nodes.Select(n => LocalToWorld(n.Position)));
+
+		return tight;
 	}
 
 	public override SKPath BuildLocalPath()

@@ -206,6 +206,31 @@ public sealed partial class MainView : SKGLControl
 		Color = new SKColor(50, 120, 255, 180)
 	};
 
+	/// <summary>
+	/// Рамка-секущая: берёт всё, чего коснулась. Другой цвет и пунктир.
+	///
+	/// Без этого два режима рамки внешне не отличить, а выбирают они
+	/// разное. Пользователь задаёт режим направлением протяжки — значит
+	/// должен видеть, какой режим получился, ещё до того, как отпустит
+	/// кнопку. Пунктир и зелёный тон — то же различение, что
+	/// в чертёжных редакторах.
+	/// </summary>
+	private static readonly SKPaint MarqueeCrossingFillPaint = new()
+	{
+		IsAntialias = true,
+		Style = SKPaintStyle.Fill,
+		Color = new SKColor(70, 190, 120, 40)
+	};
+
+	private static readonly SKPaint MarqueeCrossingStrokePaint = new()
+	{
+		IsAntialias = true,
+		Style = SKPaintStyle.Stroke,
+		StrokeWidth = 1f,
+		Color = new SKColor(50, 165, 100, 200),
+		PathEffect = SKPathEffect.CreateDash(new[] { 4f, 3f }, 0f)
+	};
+
 	private static readonly SKPaint OriginStrokePaint = new()
 	{
 		IsAntialias = true,
@@ -1595,8 +1620,10 @@ public sealed partial class MainView : SKGLControl
 			Math.Max(tl.X, br.X),
 			Math.Max(tl.Y, br.Y));
 
-		canvas.DrawRect(sr, MarqueeFillPaint);
-		canvas.DrawRect(sr, MarqueeStrokePaint);
+		bool crossing = op is MarqueeSelectionOperation { Crossing: true };
+
+		canvas.DrawRect(sr, crossing ? MarqueeCrossingFillPaint : MarqueeFillPaint);
+		canvas.DrawRect(sr, crossing ? MarqueeCrossingStrokePaint : MarqueeStrokePaint);
 	}
 
 	/// <summary>

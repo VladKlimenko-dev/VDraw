@@ -2274,11 +2274,30 @@ public sealed class MarqueeSelectionOperation : DragOperation
 {
 	public SKRect Rect { get; private set; }
 
+	/// <summary>
+	/// Режим рамки: true — «задел, значит выбран», false — «только целиком».
+	///
+	/// Определяется направлением протяжки по горизонтали: слева направо —
+	/// рамка-окно, берёт лишь то, что вошло в неё полностью; справа налево —
+	/// рамка-секущая, берёт всё, чего коснулась.
+	///
+	/// Решает одна горизонталь, а не обе оси сразу. Пользователь тянет
+	/// рамку по диагонали, и вертикальная составляющая у одного и того же
+	/// по смыслу движения бывает любой: вниз-вправо и вверх-вправо — это
+	/// одно и то же «вправо». Потребуй мы совпадения обеих осей, две
+	/// из четырёх диагоналей остались бы без определённого режима,
+	/// и рамка вела бы себя по-разному при одинаковом, на взгляд
+	/// пользователя, движении. Правило по горизонтали — то же, что
+	/// в чертёжных редакторах, и привыкать к нему не нужно.
+	/// </summary>
+	public bool Crossing { get; private set; }
+
 	public override DragOperationKind Kind => DragOperationKind.MarqueeSelect;
 
 	public override void Begin(MainView view, EditorInteractionContext ctx, SKPoint pagePoint)
 	{
 		Rect = new SKRect(pagePoint.X, pagePoint.Y, pagePoint.X, pagePoint.Y);
+		Crossing = false;
 
 		ctx.SelectionSnapshot.Clear();
 		ctx.SelectionSnapshot.AddRange(ctx.Selection);
@@ -2287,6 +2306,7 @@ public sealed class MarqueeSelectionOperation : DragOperation
 	public override void Update(MainView view, EditorInteractionContext ctx, SKPoint pagePoint)
 	{
 		Rect = Normalize(ctx.MouseDownPage, pagePoint);
+		Crossing = pagePoint.X < ctx.MouseDownPage.X;
 
 		if (ctx.CtrlPressed)
 			SelectionHelper.RestoreSnapshot(ctx);
@@ -2295,10 +2315,29 @@ public sealed class MarqueeSelectionOperation : DragOperation
 
 		foreach (var s in view.GetShapesBackToFront())
 		{
-			var b = s.GetBounds();
-			var center = new SKPoint((b.Left + b.Right) * 0.5f, (b.Top + b.Bottom) * 0.5f);
+			// Направляющие рамкой не берутся.
+			//
+			// Их габариты — бесконечная полоса через весь лист, и секущая
+			// рамка задевала бы каждую направляющую поблизости, а рамка-окно
+			// не смогла бы взять ни одну: полоса в неё не вмещается никогда.
+			// Направляющую выделяют щелчком по ней — там для этого есть
+			// отдельный разбор попадания.
+			if (s is GuideLine)
+				continue;
 
-			if (Rect.Contains(center))
+			// Скрытое и запертое не выделяется — так же, как при щелчке.
+			// Прежде проверка центра брала и то и другое: при рамке-секущей
+			// это стало бы заметно сразу.
+			if (!s.IsVisible || s.IsLocked)
+				continue;
+
+			var b = s.GetBounds();
+
+			bool hit = Crossing
+				? IntersectsRect(Rect, b)
+				: ContainsRect(Rect, b);
+
+			if (hit)
 				SelectionHelper.Add(ctx, s);
 		}
 	}
@@ -2306,6 +2345,7 @@ public sealed class MarqueeSelectionOperation : DragOperation
 	public override void End(MainView view, EditorInteractionContext ctx, SKPoint pagePoint)
 	{
 		Rect = Normalize(ctx.MouseDownPage, pagePoint);
+		Crossing = pagePoint.X < ctx.MouseDownPage.X;
 		ctx.SelectionSnapshot.Clear();
 
 		// Выделение менялось в Update напрямую через SelectionHelper, минуя
@@ -2318,6 +2358,34 @@ public sealed class MarqueeSelectionOperation : DragOperation
 		// за одну протяжку.
 		view.mainForm?.ApplyEditorModeFromSelection();
 		view.RaiseSelectionChanged();
+	}
+
+	/// <summary>
+	/// Коробка inner целиком внутри outer.
+	///
+	/// Своя проверка, а не SKRect.Contains: та отказывает вырожденным
+	/// коробкам. Вертикальный отрезок имеет нулевую ширину, и строгие
+	/// сравнения выбрасывали бы его из рамки, в которой он на самом
+	/// деле лежит. Границы считаются входящими: фигура, край которой
+	/// совпал с краем рамки, пользователем воспринимается как попавшая.
+	/// </summary>
+	private static bool ContainsRect(SKRect outer, SKRect inner)
+	{
+		return inner.Left >= outer.Left
+			&& inner.Right <= outer.Right
+			&& inner.Top >= outer.Top
+			&& inner.Bottom <= outer.Bottom;
+	}
+
+	/// <summary>
+	/// Коробки пересекаются или касаются. Вырожденные — тоже.
+	/// </summary>
+	private static bool IntersectsRect(SKRect a, SKRect b)
+	{
+		return a.Left <= b.Right
+			&& a.Right >= b.Left
+			&& a.Top <= b.Bottom
+			&& a.Bottom >= b.Top;
 	}
 
 	private static SKRect Normalize(SKPoint a, SKPoint b)
