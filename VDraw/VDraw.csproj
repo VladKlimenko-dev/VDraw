@@ -1,0 +1,82 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.19041</TargetFramework>
+    <Nullable>enable</Nullable>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
+    <StartupObject>VDraw.Program</StartupObject>
+    <ApplicationIcon>Resources\vdraw.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="SkiaSharp" Version="4.151.1" />
+    <PackageReference Include="SkiaSharp.Views.WindowsForms" Version="4.151.1" />
+  </ItemGroup>
+
+  <!--
+    Единое правило копирования вместо пятидесяти отдельных записей <None Update>.
+    Любой новый файл, положенный в Resources (включая вложенные папки Patterns,
+    Textures, Brushes, Icons), попадает в каталог сборки автоматически —
+    csproj больше править не нужно.
+
+    Каталог назначения повторяет структуру Resources, поэтому в рантайме путь
+    строится как ResourcePaths.Patterns / ResourcePaths.Textures и т.д.
+
+    Исключены .resx: они компилируются как EmbeddedResource и в выходной
+    каталог попадать не должны.
+  -->
+  <ItemGroup>
+    <None Include="Resources\**\*" Exclude="Resources\**\*.resx">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>Resources\%(RecursiveDir)%(Filename)%(Extension)</Link>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="Resources\vdraw.ico" />
+  </ItemGroup>
+
+  <!--
+    Нативные библиотеки. Правило то же, что и для Resources: любой файл,
+    положенный в Libraries, попадает в каталог сборки с сохранением
+    структуры подпапок. Туда кладётся pdfium.dll — её ищет
+    PdfImporter.InstallResolver, начиная именно с этой папки.
+  -->
+  <ItemGroup>
+    <None Include="Libraries\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>Libraries\%(RecursiveDir)%(Filename)%(Extension)</Link>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Update="Properties\Resources.Designer.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>Resources.resx</DependentUpon>
+    </Compile>
+    <Compile Update="Properties\Settings.Designer.cs">
+      <DesignTimeSharedInput>True</DesignTimeSharedInput>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>Settings.settings</DependentUpon>
+    </Compile>
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Update="Properties\Resources.resx">
+      <Generator>ResXFileCodeGenerator</Generator>
+      <LastGenOutput>Resources.Designer.cs</LastGenOutput>
+    </EmbeddedResource>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="Properties\Settings.settings">
+      <Generator>SettingsSingleFileGenerator</Generator>
+      <LastGenOutput>Settings.Designer.cs</LastGenOutput>
+    </None>
+  </ItemGroup>
+
+</Project>
