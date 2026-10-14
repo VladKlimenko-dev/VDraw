@@ -3057,11 +3057,19 @@ public sealed class ImageShape : CurveShape
 	/// </summary>
 	public override bool HitTest(SKPoint pagePoint, float toleranceUom, float mmPerUom)
 	{
-		var localPoint = WorldToLocal(pagePoint);
+		// Считается в МИРОВЫХ координатах.
+		//
+		// Прежде путь строился локальным, а точка переводилась в локальные,
+		// но допуск подставлялся мировой. Пока картинку не растягивали,
+		// локальная единица равна мировой, и ошибка не видна. Масштаб
+		// от растягивания ручками живёт в LocalTransform, и тогда полоса
+		// попадания вдоль контура оказывалась во столько же раз шире.
+		using var path = BuildWorldPath();
 
-		using var path = BuildLocalPath();
+		if (path == null || path.IsEmpty)
+			return false;
 
-		if (path.Contains(localPoint.X, localPoint.Y))
+		if (path.Contains(pagePoint.X, pagePoint.Y))
 			return true;
 
 		// Контур может быть разомкнут после редактирования узлов — тогда
@@ -3069,7 +3077,7 @@ public sealed class ImageShape : CurveShape
 		using var strokePaint = Stroke.CreatePaint(mmPerUom);
 		strokePaint.StrokeWidth = MathF.Max(strokePaint.StrokeWidth, toleranceUom);
 
-		return StrokeHit(path, strokePaint, localPoint);
+		return StrokeHit(path, strokePaint, pagePoint);
 	}
 
 	#endregion

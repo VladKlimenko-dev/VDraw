@@ -61,15 +61,45 @@ public sealed partial class TextShape : Shape
 
 			using var worldPath = new SKPath();
 			localPath.Transform(GetWorldTransform(), worldPath);
-			return worldPath.Bounds;
+			return worldPath.TightBounds;
 		}
 		if (AlongShape && otherShape != null)
 		{
 			using var worldPath = BuildAlongShapeWorldPath();
-			return worldPath.Bounds;
+			return worldPath.TightBounds;
 		}
 
-		return base.GetBounds();
+		// Обычный текст: локальная коробка переносится матрицей.
+		//
+		// Прежде звалась базовая реализация, а она берёт SKPath.Bounds
+		// мирового пути — коробку по КОНТРОЛЬНЫМ ТОЧКАМ контуров глифов.
+		// У букв с круглыми элементами контрольные точки выходят за саму
+		// литеру, и рамка получалась шире надписи.
+		//
+		// Теперь коробка берётся из GetLocalBounds, то есть из метрик
+		// шрифта, и переносится в мир по четырём углам. У прямоугольника
+		// осевая оболочка повёрнутых углов точна, четырёх точек хватает.
+		//
+		// Это снимает и расхождение: прилипание брало точки ЛОКАЛЬНОЙ
+		// коробки, а рамка выделения — коробку по контурам глифов, и
+		// маркеры привязки висели не там, где рамка. Теперь обе считаются
+		// из одного источника.
+		//
+		// Попутно уходит построение всего пути глифов на каждый вызов,
+		// а GetBounds зовётся для каждой фигуры страницы на каждое
+		// движение мыши.
+		var local = GetLocalBounds();
+
+		if (local.Width <= 0f && local.Height <= 0f)
+			return SKRect.Empty;
+
+		return RectFromPoints(new[]
+		{
+			LocalToWorld(new SKPoint(local.Left, local.Top)),
+			LocalToWorld(new SKPoint(local.Right, local.Top)),
+			LocalToWorld(new SKPoint(local.Right, local.Bottom)),
+			LocalToWorld(new SKPoint(local.Left, local.Bottom))
+		});
 	}
 
 	public override SKRect GetLocalBounds()
@@ -77,13 +107,13 @@ public sealed partial class TextShape : Shape
 		if (IsAreaText)
 		{
 			using var areaPath = BuildInsideShapeLocalPath();
-			return areaPath.IsEmpty ? SKRect.Empty : areaPath.Bounds;
+			return areaPath.IsEmpty ? SKRect.Empty : areaPath.TightBounds;
 		}
 
 		if (AlongShape && otherShape != null)
 		{
 			using var localPath = BuildAlongShapeLocalPath();
-			return localPath.IsEmpty ? SKRect.Empty : localPath.Bounds;
+			return localPath.IsEmpty ? SKRect.Empty : localPath.TightBounds;
 		}
 
 		using var font = CreateLocalFont();
@@ -296,48 +326,55 @@ public sealed partial class TextShape : Shape
 		return worldPath;
 	}
 
+	/// <summary>
+	/// Попадание в текст. Считается в МИРОВЫХ координатах.
+	///
+	/// Прежде обычный текст проверялся в локальных: точка переводилась
+	/// через WorldToLocal, а допуск — толщина обводки, которой «раздували»
+	/// контуры глифов, — подставлялся как есть, в мировых единицах.
+	/// У нерастянутого текста это совпадает, и ошибка не видна. Но масштаб
+	/// от растягивания ручками живёт в LocalTransform, и локальная единица
+	/// перестаёт быть равной мировой: при увеличении в N раз допуск
+	/// оказывался в N раз больше нужного. Текст, растянутый вдесятеро,
+	/// ловил щелчок на расстоянии десяти допусков — далеко за своими
+	/// границами.
+	///
+	/// Переводить допуск обратным масштабом было бы недостаточно: масштаб
+	/// бывает разным по осям, и одной толщиной обводки его не выразить.
+	/// Поэтому путь строится сразу в мире и раздувается там — ровно так,
+	/// как это всегда делали базовая реализация и ветка текста вдоль
+	/// контура.
+	///
+	/// Стыки скруглённые, а не по умолчанию остриём: остриё на острых углах
+	/// контура глифа выбрасывает шипы вплоть до четырёх полутолщин, и у
+	/// засечек с тонкими штрихами они заметно выходят за букву. Скругление
+	/// даёт честную полосу по расстоянию.
+	/// </summary>
 	public override bool HitTest(SKPoint pagePoint, float toleranceUom, float mmPerUom)
 	{
-		if (AlongShape && otherShape != null)
-		{
-			using var worldPath = BuildAlongShapeWorldPath();
-			if (worldPath.IsEmpty)
-				return false;
+		using var worldPath = AlongShape && otherShape != null
+			? BuildAlongShapeWorldPath()
+			: BuildWorldPath();
 
-			using var strokePaint = new SKPaint
-			{
-				Style = SKPaintStyle.Stroke,
-				StrokeWidth = MathF.Max(toleranceUom, 0.25f / MathF.Max(mmPerUom, 0.0001f)),
-				IsAntialias = true
-			};
-
-			using var fillPath = new SKPath();
-			if (strokePaint.GetFillPath(worldPath, fillPath) &&
-				fillPath.Contains(pagePoint.X, pagePoint.Y))
-				return true;
-
-			return worldPath.Contains(pagePoint.X, pagePoint.Y);
-		}
-
-		// обычная логика для не-алонг текста
-		var lp = WorldToLocal(pagePoint);
-
-		using var path = BuildLocalPath();
-		if (path.IsEmpty)
+		if (worldPath == null || worldPath.IsEmpty)
 			return false;
 
-		using var strokePaint2 = new SKPaint
+		if (worldPath.Contains(pagePoint.X, pagePoint.Y))
+			return true;
+
+		using var strokePaint = new SKPaint
 		{
 			Style = SKPaintStyle.Stroke,
 			StrokeWidth = MathF.Max(toleranceUom, 0.25f / MathF.Max(mmPerUom, 0.0001f)),
+			StrokeJoin = SKStrokeJoin.Round,
+			StrokeCap = SKStrokeCap.Round,
 			IsAntialias = true
 		};
 
-		using var fillPath2 = new SKPath();
-		if (strokePaint2.GetFillPath(path, fillPath2) && fillPath2.Contains(lp.X, lp.Y))
-			return true;
+		using var fillPath = new SKPath();
 
-		return path.Contains(lp.X, lp.Y);
+		return strokePaint.GetFillPath(worldPath, fillPath)
+			&& fillPath.Contains(pagePoint.X, pagePoint.Y);
 	}
 
 	public override void Draw(SKCanvas canvas, float mmPerWorldUnit)
