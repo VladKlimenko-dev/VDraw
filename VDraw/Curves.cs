@@ -2339,7 +2339,7 @@ public sealed class MoveCurveNodeOperation : DragOperation
 			shape.ClearAnchor(isFirst);
 		}
 
-		if (!ctx.AltPressed && Settings.snap_objects)
+		if (!ctx.AltPressed && ObjectSnapEngine.AnySnappingEnabled)
 		{
 			// Своя же кривая участвует в прилипании: её остальные узлы
 			// и продолжения её отрезков — самые нужные ориентиры, когда
@@ -2697,7 +2697,7 @@ public sealed class MoveCurveControlPointOperation : DragOperation
 		ctx.ActiveSnap = null;
 
 
-		if (!ctx.CtrlPressed && Settings.snap_objects)
+		if (!ctx.CtrlPressed && ObjectSnapEngine.AnySnappingEnabled)
 		{
 			var snap = ObjectSnapEngine.SnapMovingPoint(view, new[] { shape }, pagePoint, Settings.snap_dist);
 			ctx.ActiveSnap = snap;

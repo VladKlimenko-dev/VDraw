@@ -1,4 +1,4 @@
-using System.Runtime.InteropServices;
+﻿using System.Runtime.InteropServices;
 
 using SkiaSharp;
 
@@ -174,14 +174,126 @@ public static class WinFormsTheme
 		button.FlatStyle = FlatStyle.Flat;
 		button.UseVisualStyleBackColor = false;
 
-		button.BackColor = ToColor(pal.Surface2);
+		// Нажатость кнопки-выключателя перекраска обязана сохранить.
+		//
+		// Отметка хранится в BackColor, а здесь он назначается заново —
+		// и стирал её. Из-за этого при запуске все выключатели выглядели
+		// отжатыми, хотя линейки, направляющие и прилипание были включены:
+		// SetIcons расставляет отметки в конце, а Register с перекраской
+		// идёт последней строкой конструктора и проходит поверх. То же
+		// самое случалось при каждой смене темы.
+		button.BackColor = _checkedButtons.Contains(button)
+			? ButtonChecked
+			: ToColor(pal.Surface2);
+
 		button.ForeColor = ToColor(pal.Text);
 
 		button.FlatAppearance.BorderColor = ToColor(pal.Border);
 		button.FlatAppearance.BorderSize = 1;
 		button.FlatAppearance.MouseOverBackColor = ToColor(Blend(pal.Surface2, pal.Hover));
 		button.FlatAppearance.MouseDownBackColor = ToColor(pal.ButtonPressed);
+
+		HookDisabledText(button);
 	}
+
+	#region Текст выключенной кнопки
+
+	private static readonly HashSet<Button> _disabledTextHooked = new();
+
+	/// <summary>
+	/// Перерисовывает выключенную кнопку своими силами.
+	///
+	/// Значки на панелях — это символы шрифта в свойстве Text, а не
+	/// картинки. Цвет такого текста у выключенной кнопки WinForms считает
+	/// сам и ForeColor при этом не спрашивает: для плоской кнопки он берёт
+	/// затемнённый цвет её поверхности. На светлой панели это даёт почти
+	/// тот же тёмный символ, что и у включённой кнопки, — отличить
+	/// доступную от недоступной на глаз нельзя.
+	///
+	/// Повлиять на это свойствами нельзя, поэтому выключенная кнопка
+	/// рисуется здесь целиком: заливка, рамка, символ приглушённым цветом
+	/// палитры. Для плоской кнопки это ровно три действия, и ничего,
+	/// кроме них, система на ней и не рисует.
+	///
+	/// Берутся только кнопки с текстом и без картинок: у кнопок выбора
+	/// цвета есть подложка-шахматка и значащий BackColor, и перерисовывать
+	/// их этим способом нельзя.
+	/// </summary>
+	private static void HookDisabledText(Button button)
+	{
+		if (!_disabledTextHooked.Add(button))
+			return;
+
+		button.Paint += (s, e) =>
+		{
+			if (s is not Button b)
+				return;
+
+			if (b.Enabled || b.Image != null || b.BackgroundImage != null)
+				return;
+
+			if (string.IsNullOrEmpty(b.Text))
+				return;
+
+			var pal = SkUiTheme.Current;
+			var bounds = b.ClientRectangle;
+
+			e.Graphics.Clear(b.BackColor);
+
+			if (b.FlatAppearance.BorderSize > 0)
+			{
+				ControlPaint.DrawBorder(
+					e.Graphics,
+					bounds,
+					b.FlatAppearance.BorderColor,
+					ButtonBorderStyle.Solid);
+			}
+
+			TextRenderer.DrawText(
+				e.Graphics,
+				b.Text,
+				b.Font,
+				bounds,
+				ToColor(pal.TextMuted),
+				TextFlagsFor(b.TextAlign));
+		};
+
+		button.EnabledChanged += (s, _) =>
+		{
+			// Перерисовка обязательна: смена доступности сама по себе
+			// перерисовку плоской кнопки не вызывает, и символ оставался бы
+			// прежнего цвета до первого наведения мышью.
+			if (s is Button b)
+				b.Invalidate();
+		};
+	}
+
+	private static TextFormatFlags TextFlagsFor(ContentAlignment align)
+	{
+		var flags = TextFormatFlags.SingleLine | TextFormatFlags.NoPrefix;
+
+		flags |= align switch
+		{
+			ContentAlignment.TopLeft or ContentAlignment.MiddleLeft or ContentAlignment.BottomLeft
+				=> TextFormatFlags.Left,
+			ContentAlignment.TopRight or ContentAlignment.MiddleRight or ContentAlignment.BottomRight
+				=> TextFormatFlags.Right,
+			_ => TextFormatFlags.HorizontalCenter
+		};
+
+		flags |= align switch
+		{
+			ContentAlignment.TopLeft or ContentAlignment.TopCenter or ContentAlignment.TopRight
+				=> TextFormatFlags.Top,
+			ContentAlignment.BottomLeft or ContentAlignment.BottomCenter or ContentAlignment.BottomRight
+				=> TextFormatFlags.Bottom,
+			_ => TextFormatFlags.VerticalCenter
+		};
+
+		return flags;
+	}
+
+	#endregion
 
 	/// <summary>
 	/// Цвет кнопки-выключателя в текущей теме.
@@ -193,6 +305,32 @@ public static class WinFormsTheme
 	public static Color ButtonChecked => ToColor(SkUiTheme.Current.Selected);
 
 	public static Color ButtonNormal => ToColor(SkUiTheme.Current.Surface2);
+
+	/// <summary>
+	/// Кнопки-выключатели, стоящие в нажатом положении.
+	///
+	/// Отдельный список, а не только цвет фона: цвет перекраска назначает
+	/// заново, и состояние, записанное одним лишь цветом, она стирала.
+	/// Здесь же лежит сам ФАКТ нажатости, не зависящий от палитры, —
+	/// перекраске остаётся взять из него цвет.
+	/// </summary>
+	private static readonly HashSet<Button> _checkedButtons = new();
+
+	/// <summary>
+	/// Ставит кнопку-выключатель в нажатое или отжатое положение.
+	/// </summary>
+	public static void SetChecked(Button button, bool isChecked)
+	{
+		if (button == null)
+			return;
+
+		if (isChecked)
+			_checkedButtons.Add(button);
+		else
+			_checkedButtons.Remove(button);
+
+		button.BackColor = isChecked ? ButtonChecked : ButtonNormal;
+	}
 
 	/// <summary>
 	/// Выпадающий список.

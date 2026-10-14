@@ -2419,7 +2419,10 @@ public partial class MainForm : Form
 
 	private void SetButtonChecked(System.Windows.Forms.Button but, bool is_checked)
 	{
-		but.BackColor = is_checked ? WinFormsTheme.ButtonChecked : WinFormsTheme.ButtonNormal;
+		// Состояние запоминает тема: она же перекрашивает кнопки при
+		// запуске и при смене оформления, и без этого её перекраска
+		// стирала бы отметку.
+		WinFormsTheme.SetChecked(but, is_checked);
 	}
 	#endregion
 

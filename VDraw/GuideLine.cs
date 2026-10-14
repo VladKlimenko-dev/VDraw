@@ -446,7 +446,7 @@ public sealed class MoveGuideCenterOperation : DragOperation
 
 		var candidate = new SKPoint(_startCenter.X + dx, _startCenter.Y + dy);
 
-		if (!ctx.AltPressed && Settings.snap_objects)
+		if (!ctx.AltPressed && ObjectSnapEngine.AnySnappingEnabled)
 		{
 			// Сама направляющая исключается: её собственная линия проходит
 			// через центр, и он прилипал бы к ней же, никуда не двигаясь.

@@ -2233,7 +2233,22 @@ public sealed class SelectTool : IEditorTool
 			HitKind.SelectionHandle => Cursors.Cross,
 			HitKind.TextAlongShapeHandle when ctx.HotHit.Handle is HandleKind.TextAlongAxLeft or HandleKind.TextAlongAxRight => Cursors.SizeWE,
 			HitKind.TextAlongShapeHandle when ctx.HotHit.Handle is HandleKind.TextAlongAyTop or HandleKind.TextAlongAyBottom => Cursors.SizeNS,
-			_ => Cursors.Default
+
+			// Подсвеченная точка — угол, середина стороны или центр
+			// габаритов — тоже место захвата: нажатие на ней берёт фигуру
+			// и несёт её. Курсор обязан об этом говорить, иначе точка
+			// выглядит украшением: видно её, а что с ней делать — нет.
+			//
+			// Последним случаем, а не первым: у ручек выделения и у ручек
+			// свойств свои курсоры, и они точнее — там тянут за одну ось
+			// или вращают, а не переносят.
+			//
+			// В режиме узлов — нет: там протяжка по пустому месту обводит
+			// узлы рамкой, а фигуру целиком не несёт, и курсор обещал бы
+			// то, чего не будет.
+			_ => ctx.HoveredNodeShape != null && !view.IsCurveEditMode
+				? Cursors.SizeAll
+				: Cursors.Default
 		};
 	}
 
@@ -3618,7 +3633,7 @@ public sealed class MoveShapePointOperation : DragOperation
 			return;
 		}
 
-		if (!ctx.CtrlPressed && Settings.snap_objects)
+		if (!ctx.CtrlPressed && ObjectSnapEngine.AnySnappingEnabled)
 		{
 			var snap = ObjectSnapEngine.SnapMovingPoint(
 				view,

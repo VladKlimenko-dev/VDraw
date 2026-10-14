@@ -456,6 +456,21 @@ public static class ShapeSnapGeometry
 public static class ObjectSnapEngine
 {
 	/// <summary>
+	/// Включена ли хоть одна ветка прилипания.
+	///
+	/// Веток три, и они независимы: узлы и рёбра фигур, направляющие,
+	/// динамические направляющие. Вызывающие прежде спрашивали только
+	/// про первую — Settings.snap_objects — и, выключив её, пользователь
+	/// разом лишался и направляющих, и сетки, и выравнивания по соседям,
+	/// хотя выключал он совсем другое.
+	///
+	/// Внутри движка каждая ветка проверяет свой признак сама, поэтому
+	/// звать его достаточно, когда включена хотя бы одна.
+	/// </summary>
+	public static bool AnySnappingEnabled =>
+		Settings.snap_objects || Settings.snap_to_guidelines || Settings.dynamic_guidelines;
+
+	/// <summary>
 	/// Прилипание одной движущейся точки.
 	///
 	/// selfShape — фигура, которую правят прямо сейчас. Её собственные
@@ -1024,22 +1039,27 @@ public static class ObjectSnapEngine
 				Consider(target.WorldPoint);
 		}
 
-		if (Settings.snap_objects)
+		// Фигуры перебираются независимо от Settings.snap_objects.
+		//
+		// Это и есть динамические направляющие: кромка и узел соседней
+		// фигуры — единственное, от чего они строятся. Пока перебор стоял
+		// под признаком прилипания к объектам, выключение того признака
+		// отнимало и динамические направляющие — при включённой их
+		// собственной галочке. Своя проверка у метода уже есть, в самом
+		// начале.
+		foreach (var shape in view.GetShapesBackToFront())
 		{
-			foreach (var shape in view.GetShapesBackToFront())
-			{
-				if (!shape.IsVisible || shape.IsLocked)
-					continue;
+			if (!shape.IsVisible || shape.IsLocked)
+				continue;
 
-				if (excluded.Contains(shape))
-					continue;
+			if (excluded.Contains(shape))
+				continue;
 
-				if (shape is GuideLine)
-					continue;
+			if (shape is GuideLine)
+				continue;
 
-				foreach (var target in ShapeSnapGeometry.GetSnapPoints(shape))
-					Consider(target.WorldPoint);
-			}
+			foreach (var target in ShapeSnapGeometry.GetSnapPoints(shape))
+				Consider(target.WorldPoint);
 		}
 
 		if (!hasX && !hasY)
