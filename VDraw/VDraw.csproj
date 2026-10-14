@@ -12,20 +12,25 @@
     <ApplicationIcon>Resources\vdraw.ico</ApplicationIcon>
 
     <!--
-      Пути к файлам внутри .resx считаются от папки САМОГО .resx.
+      Пути к файлам внутри .resx считаются от папки ПРОЕКТА.
 
-      В Properties\Resources.resx полсотни записей вида
-      ..\Resources\имя.png. Они написаны так, как их пишет сам редактор
-      ресурсов: на шаг вверх из Properties и вниз в Resources.
+      Редактор ресурсов Visual Studio пишет их от папки самого .resx:
+      для Properties\Resources.resx выходит ..\Resources\имя.png —
+      шаг вверх из Properties и вниз в Resources. Собирается же всё
+      иначе: GenerateResource отсчитывает от папки проекта, шаг вверх
+      уводит наружу, и сборка падает на MSB3554 «Could not find a part
+      of the path ...\VDraw\Resources\free_poly.png» — каталог уровнем
+      выше настоящего.
 
-      Без этого свойства GenerateResource отсчитывает такие пути от папки
-      ПРОЕКТА, и шаг вверх уводит из него наружу — сборка падает на
-      MSB3554 «Could not find a part of the path ...\VDraw\Resources\
-      free_poly.png», то есть на каталог уровнем выше настоящего.
-      Значение по умолчанию у разных версий MSBuild разное, поэтому оно
-      задано явно, а не оставлено на усмотрение сборщика.
+      Поэтому пути в Properties\Resources.resx записаны без шага вверх,
+      а свойство задано явно: иначе смена значения по умолчанию
+      в очередной версии MSBuild сломала бы их все разом.
+
+      ВАЖНО: добавив картинку через редактор ресурсов, проверьте путь
+      в .resx. Редактор снова впишет ..\Resources\ — ведущие две точки
+      надо убрать.
     -->
-    <UseSourcePath>true</UseSourcePath>
+    <UseSourcePath>false</UseSourcePath>
   </PropertyGroup>
 
   <ItemGroup>
