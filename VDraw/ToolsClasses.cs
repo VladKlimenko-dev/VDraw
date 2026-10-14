@@ -2119,6 +2119,10 @@ public sealed class SelectTool : IEditorTool
 					return;
 				}
 
+				// Нажатие пришлось на подсвеченную точку — берём фигуру за неё.
+				if (TryGrabByHighlightedPoint(view, ctx, pagePoint, before))
+					return;
+
 				if (!ctx.CtrlPressed)
 					SelectionHelper.Clear(ctx);
 
@@ -2126,6 +2130,80 @@ public sealed class SelectTool : IEditorTool
 				view.StartOperation(new MarqueeSelectionOperation(), pagePoint);
 				break;
 		}
+	}
+
+	/// <summary>
+	/// Захват фигуры за подсвеченную точку, когда под курсором нет ни линии,
+	/// ни заливки.
+	///
+	/// Угол и центр габаритов у кривой, эллипса, текста лежат в пустоте:
+	/// геометрии там нет, разбор попадания ничего не находит, и нажатие
+	/// уходило в рамку выделения. Получалось, что точку видно, она
+	/// подсвечена, а взяться за неё нельзя — тогда как именно за угол
+	/// габаритов фигуру и несут, чтобы совместить с чужим углом.
+	///
+	/// Берётся ровно та точка, которую пользователь видит подсвеченной:
+	/// MainView запоминает её в PressedNode* на нажатии. Поэтому и условие
+	/// честное — никакого скрытого радиуса, за пределами которого подсветка
+	/// гаснет, а захват ещё срабатывает.
+	///
+	/// Выделяется предок верхнего уровня, а не сама деталь: щелчок по
+	/// корпусу группы тоже выделяет группу. Если же выделение уже содержит
+	/// деталь или её предка, выделение не трогается вовсе — начинается
+	/// перемещение.
+	/// </summary>
+	private static bool TryGrabByHighlightedPoint(
+		MainView view,
+		EditorInteractionContext ctx,
+		SKPoint pagePoint,
+		List<Shape> before)
+	{
+		var node = ctx.PressedNodeShape;
+
+		if (node == null || ctx.PressedNodeWorld == null)
+			return false;
+
+		if (node is GuideLine || !node.IsVisible || node.IsLocked)
+			return false;
+
+		// Уже выделено — своё, тащим как есть.
+		for (var current = node; current != null; current = current.Parent)
+		{
+			if (ctx.Selection.Contains(current))
+			{
+				if (ctx.CtrlPressed)
+					return false;
+
+				view.StartOperation(new MoveSelectionOperation(), pagePoint);
+				return true;
+			}
+		}
+
+		var root = node;
+		while (root.Parent != null)
+			root = root.Parent;
+
+		if (root.IsLocked || !root.IsVisible)
+			return false;
+
+		if (ctx.CtrlPressed)
+		{
+			SelectionHelper.Add(ctx, root);
+			view.mainForm?.ApplyEditorModeFromSelection();
+			view.NotifySelectionIfChanged(before);
+			return true;
+		}
+
+		SelectionHelper.SetSingle(ctx, root);
+		view.mainForm?.ApplyEditorModeFromSelection();
+		view.NotifySelectionIfChanged(before);
+
+		// Перемещение откладывается до сдвига мыши: щелчок без протяжки
+		// должен только выделять, как и щелчок по корпусу фигуры.
+		ctx.DeferredMoveCandidate = true;
+		ctx.DeferredMoveShape = root;
+
+		return true;
 	}
 
 	public void OnMouseMove(MainView view, EditorInteractionContext ctx, SKPoint pagePoint)

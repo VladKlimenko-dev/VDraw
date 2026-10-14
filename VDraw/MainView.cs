@@ -49,6 +49,69 @@ public sealed partial class MainView : SKGLControl
 	public VScrollBar VerticalScrollBar => _vScroll;
 
 	private const float ViewMarginPx = 800f;
+
+	/// <summary>
+	/// Левый и верхний край виртуального поля прокрутки, в тех же пикселях,
+	/// в которых живёт zero_pos.
+	///
+	/// Прежде край был постоянным (минус поле), и обработчики полос знали
+	/// его наизусть. Теперь он зависит от того, куда разошлись фигуры,
+	/// и его приходится запоминать: по нему значение полосы переводится
+	/// в положение листа и обратно.
+	/// </summary>
+	private float _scrollVirtualLeft = -ViewMarginPx;
+	private float _scrollVirtualTop = -ViewMarginPx;
+
+	/// <summary>Габариты всех фигур страницы в единицах страницы, с запасом по времени.</summary>
+	private SKRect _contentBoundsCache = SKRect.Empty;
+	private bool _contentBoundsValid;
+	private long _contentBoundsTicks;
+	private Page? _contentBoundsPage;
+	private int _contentBoundsShapeCount = -1;
+
+	/// <summary>
+	/// Насколько устаревшими габаритами содержимого можно пользоваться.
+	///
+	/// Полосы пересчитываются и на каждое движение мыши при панорамировании,
+	/// и на каждый шаг автопрокрутки, а габариты — это GetBounds у каждой
+	/// фигуры листа. Между тем за одну протяжку они меняются мало, и запас
+	/// в пятую долю секунды на глаз не виден: диапазон полосы дотянется
+	/// следом.
+	///
+	/// Появление и исчезновение фигур запасом не сглаживается: число фигур
+	/// входит в ключ, и вставка, удаление, вставка из буфера и откат
+	/// любого из них пересчитывают габариты сразу. Перемещение же
+	/// и изменение размера числа фигур не меняют и попадают под общий
+	/// запас — на диапазоне полосы это и есть та самая пятая доля секунды.
+	/// </summary>
+	private const long ContentBoundsTtlMs = 200;
+
+	/// <summary>Полоса у края вида, при заходе в которую начинается автопрокрутка.</summary>
+	private const float AutoScrollBandPx = 28f;
+
+	/// <summary>Самый быстрый шаг автопрокрутки за один такт.</summary>
+	private const float AutoScrollMaxStepPx = 28f;
+
+	private readonly System.Windows.Forms.Timer _autoScrollTimer = new() { Interval = 30 };
+
+	/// <summary>
+	/// Выходил ли курсор из приграничной полосы с начала протяжки —
+	/// отдельно по каждой оси.
+	///
+	/// Пока не выходил, автопрокрутка по этой оси молчит. Иначе протяжка,
+	/// НАЧАТАЯ у кромки, уезжала бы сама собой, ещё до единого движения
+	/// мыши. Так происходит при вытягивании направляющей с линейки:
+	/// операция запускается, когда курсор стоит на самой линейке, то есть
+	/// внутри полосы, — и вид уносило бы влево, стоило взяться
+	/// за направляющую.
+	///
+	/// Оси считаются порознь, а не одним признаком на обе. Одним признаком
+	/// направляющая, взятая с ЛЕВОЙ линейки, не прокручивала бы вид и вниз,
+	/// пока курсор не выйдет из левой полосы, — хотя к нижней кромке он
+	/// пришёл своим ходом и прокрутка там законна.
+	/// </summary>
+	private bool _autoScrollArmedX;
+	private bool _autoScrollArmedY;
 	private bool _updatingScrollbars = false;
 	/// <summary>Минимальный и максимальный масштаб вида.</summary>
 	private const float MinFitScale = 0.02f;
@@ -272,6 +335,8 @@ public sealed partial class MainView : SKGLControl
 
 		_hScroll.Scroll += HScroll_Scroll;
 		_vScroll.Scroll += VScroll_Scroll;
+
+		_autoScrollTimer.Tick += AutoScrollTick;
 
 		RegisterTools();
 
@@ -566,6 +631,13 @@ public sealed partial class MainView : SKGLControl
 		_interaction.ActiveOperation = op;
 		op.Begin(this, _interaction, pagePoint);
 		MainForm.sel.NotifyGeometryChanged();
+
+		// Пока идёт протяжка, вид сам доезжает за курсором, ушедшим за край.
+		// Такт сам остановится, когда операция закончится.
+		_autoScrollArmedX = false;
+		_autoScrollArmedY = false;
+		_autoScrollTimer.Start();
+
 		InvalidateCanvas();
 	}
 
@@ -773,6 +845,7 @@ public sealed partial class MainView : SKGLControl
 
 		scale = CurrentPage.scale <= 0 ? 1f : CurrentPage.scale;
 		zero_pos = CurrentPage.view_zero == SKPoint.Empty ? new SKPoint(80, 80) : CurrentPage.view_zero;
+		InvalidateContentBounds();
 		UpdateScrollBars();
 		InvalidateCanvas();
 	}
@@ -1006,18 +1079,109 @@ public sealed partial class MainView : SKGLControl
 			page.SizeMm.Height * pxPerMm * scale);
 	}
 
+	/// <summary>
+	/// Габариты всех фигур страницы в единицах страницы.
+	///
+	/// Направляющие не в счёт: они бесконечны и растянули бы поле прокрутки
+	/// до бессмысленных величин. Невидимые — тоже: их не видно, значит
+	/// и доезжать до них незачем.
+	/// </summary>
+	private SKRect GetShapesContentBounds(Page page)
+	{
+		long now = Environment.TickCount64;
+
+		if (_contentBoundsValid
+			&& ReferenceEquals(_contentBoundsPage, page)
+			&& _contentBoundsShapeCount == page.Shapes.Count
+			&& now - _contentBoundsTicks < ContentBoundsTtlMs)
+		{
+			return _contentBoundsCache;
+		}
+
+		var result = SKRect.Empty;
+		bool any = false;
+
+		foreach (var shape in page.Shapes)
+		{
+			if (shape is GuideLine || !shape.IsVisible)
+				continue;
+
+			var b = shape.GetBounds();
+
+			if (b.Width <= 0f && b.Height <= 0f)
+				continue;
+
+			result = any ? Geometry.Union(result, b) : b;
+			any = true;
+		}
+
+		_contentBoundsCache = any ? result : SKRect.Empty;
+		_contentBoundsValid = true;
+		_contentBoundsTicks = now;
+		_contentBoundsPage = page;
+		_contentBoundsShapeCount = page.Shapes.Count;
+
+		return _contentBoundsCache;
+	}
+
+	/// <summary>Сбрасывает запомненные габариты содержимого.</summary>
+	public void InvalidateContentBounds()
+	{
+		_contentBoundsValid = false;
+	}
+
+	/// <summary>
+	/// Поле прокрутки в «виртуальных» пикселях — экранная точка минус zero_pos.
+	///
+	/// Лист в них занимает от нуля до своего размера, а точка листа p стоит
+	/// в (p − page_origin)·масштаб: ровно то, что делает PageToScreen,
+	/// за вычетом zero_pos.
+	///
+	/// Прежде полем был только лист. Фигуры, вынесенные за его край, в поле
+	/// не попадали, полоса до них не доезжала, и добраться до такой фигуры
+	/// можно было лишь панорамированием средней кнопкой — а по полосе
+	/// казалось, что на листе её вовсе нет.
+	/// </summary>
+	private SKRect GetScrollContentRect(Page page)
+	{
+		var pageSize = GetPageSizePx(page);
+
+		float left = 0f;
+		float top = 0f;
+		float right = pageSize.Width;
+		float bottom = pageSize.Height;
+
+		var shapes = GetShapesContentBounds(page);
+
+		if (shapes.Width > 0f || shapes.Height > 0f)
+		{
+			float f = ViewPxPerUom(page);
+			var origin = page.page_origin;
+
+			left = MathF.Min(left, (shapes.Left - origin.X) * f);
+			top = MathF.Min(top, (shapes.Top - origin.Y) * f);
+			right = MathF.Max(right, (shapes.Right - origin.X) * f);
+			bottom = MathF.Max(bottom, (shapes.Bottom - origin.Y) * f);
+		}
+
+		return new SKRect(left, top, right, bottom);
+	}
+
 	private void UpdateScrollBars()
 	{
 		if (CurrentPage == null)
 			return;
 
 		var viewport = GetCanvasViewport();
-		var pageSize = GetPageSizePx(CurrentPage);
+		var content = GetScrollContentRect(CurrentPage);
 
-		float virtualLeft = -ViewMarginPx;
-		float virtualTop = -ViewMarginPx;
-		float virtualRight = pageSize.Width + ViewMarginPx;
-		float virtualBottom = pageSize.Height + ViewMarginPx;
+		float virtualLeft = content.Left - ViewMarginPx;
+		float virtualTop = content.Top - ViewMarginPx;
+		float virtualRight = content.Right + ViewMarginPx;
+		float virtualBottom = content.Bottom + ViewMarginPx;
+
+		_scrollVirtualLeft = virtualLeft;
+		_scrollVirtualTop = virtualTop;
 
 		int contentWidth = (int)MathF.Ceiling(virtualRight - virtualLeft);
 		int contentHeight = (int)MathF.Ceiling(virtualBottom - virtualTop);
@@ -1028,8 +1192,8 @@ public sealed partial class MainView : SKGLControl
 		int maxH = Math.Max(0, contentWidth - 1);
 		int maxV = Math.Max(0, contentHeight - 1);
 
-		int hValue = (int)MathF.Round(ViewMarginPx - zero_pos.X);
-		int vValue = (int)MathF.Round(ViewMarginPx - zero_pos.Y);
+		int hValue = (int)MathF.Round(-virtualLeft - zero_pos.X);
+		int vValue = (int)MathF.Round(-virtualTop - zero_pos.Y);
 
 		hValue = Math.Clamp(hValue, 0, Math.Max(0, maxH - viewWidth + 1));
 		vValue = Math.Clamp(vValue, 0, Math.Max(0, maxV - viewHeight + 1));
@@ -1055,12 +1219,104 @@ public sealed partial class MainView : SKGLControl
 		}
 	}
 
+	/// <summary>
+	/// Доводка вида, когда протяжка увела курсор к краю или за край.
+	///
+	/// Без неё фигуру нельзя было положить туда, чего в момент начала
+	/// протяжки не было видно: курсор упирался в край, вид стоял, и
+	/// приходилось бросать фигуру на полпути, прокручивать и брать заново.
+	///
+	/// Лист едет, курсор стоит — значит мир под курсором уехал, и операция
+	/// обязана пересчитаться в новой точке. Иначе фигура осталась бы висеть
+	/// на прежнем месте листа, а не шла бы за курсором.
+	///
+	/// Положение курсора берётся не из события, а напрямую: такт приходит
+	/// по времени, а не по движению мыши, и пока пользователь держит курсор
+	/// неподвижно у края, движения ему никто не присылает.
+	/// </summary>
+	private void AutoScrollTick(object? sender, EventArgs e)
+	{
+		// Кнопка отпущена — протяжки нет, что бы ни осталось в ActiveOperation.
+		// Без этой проверки зависшая операция заставляла бы вид уезжать
+		// всякий раз, когда курсор просто проходит у края.
+		if (CurrentPage == null
+			|| _interaction.ActiveOperation == null
+			|| _panning
+			|| Control.MouseButtons == MouseButtons.None)
+		{
+			_autoScrollTimer.Stop();
+			return;
+		}
+
+		var viewport = GetCanvasViewport();
+
+		if (viewport.Width < 8 || viewport.Height < 8)
+			return;
+
+		var mouse = PointToClient(MousePosition);
+
+		float dx = EdgePush(mouse.X, viewport.Left, viewport.Right);
+		float dy = EdgePush(mouse.Y, viewport.Top, viewport.Bottom);
+
+		// Ось, по которой курсор сейчас вне полосы, считается взведённой:
+		// к кромке по ней он придёт своим ходом, а не окажется там
+		// с самого начала.
+		if (dx == 0f)
+			_autoScrollArmedX = true;
+
+		if (dy == 0f)
+			_autoScrollArmedY = true;
+
+		if (!_autoScrollArmedX)
+			dx = 0f;
+
+		if (!_autoScrollArmedY)
+			dy = 0f;
+
+		if (dx == 0f && dy == 0f)
+			return;
+
+		zero_pos = new SKPoint(zero_pos.X + dx, zero_pos.Y + dy);
+		CurrentPage.view_zero = zero_pos;
+
+		UpdateScrollBars();
+
+		var world = ScreenToPage(mouse);
+
+		_interaction.LastPage = _interaction.CurrentPage;
+		_interaction.CurrentPage = world;
+
+		_interaction.ActiveOperation.Update(this, _interaction, world);
+		MainForm.sel.NotifyGeometryChanged();
+
+		InvalidateCanvas();
+	}
+
+	/// <summary>
+	/// Сдвиг листа за один такт по одной оси.
+	///
+	/// Положительный сдвиг двигает лист вправо или вниз, то есть открывает
+	/// то, что лежит левее или выше. Чем дальше курсор зашёл за кромку, тем
+	/// быстрее ход, но не быстрее предела: иначе рывок мыши за край окна
+	/// уносил бы вид на экраны от нужного места.
+	/// </summary>
+	private static float EdgePush(int value, int min, int max)
+	{
+		if (value < min + AutoScrollBandPx)
+			return MathF.Min(AutoScrollMaxStepPx, (min + AutoScrollBandPx - value) * 0.5f);
+
+		if (value > max - AutoScrollBandPx)
+			return -MathF.Min(AutoScrollMaxStepPx, (value - (max - AutoScrollBandPx)) * 0.5f);
+
+		return 0f;
+	}
+
 	private void HScroll_Scroll(object? sender, ScrollEventArgs e)
 	{
 		if (_updatingScrollbars || CurrentPage == null)
 			return;
 
-		zero_pos = new SKPoint(ViewMarginPx - _hScroll.Value, zero_pos.Y);
+		zero_pos = new SKPoint(-_scrollVirtualLeft - _hScroll.Value, zero_pos.Y);
 		CurrentPage.view_zero = zero_pos;
 		InvalidateCanvas();
 	}
@@ -1070,7 +1326,7 @@ public sealed partial class MainView : SKGLControl
 		if (_updatingScrollbars || CurrentPage == null)
 			return;
 
-		zero_pos = new SKPoint(zero_pos.X, ViewMarginPx - _vScroll.Value);
+		zero_pos = new SKPoint(zero_pos.X, -_scrollVirtualTop - _vScroll.Value);
 		CurrentPage.view_zero = zero_pos;
 		InvalidateCanvas();
 	}
@@ -1857,6 +2113,15 @@ public sealed partial class MainView : SKGLControl
 		// Узел под курсором запоминается именно здесь: перетаскивание
 		// начнётся позже, когда курсор уйдёт от точки нажатия, и к тому
 		// моменту подсвеченным будет уже другой узел.
+		//
+		// Сначала пересчёт. Подсветка обновляется на движении мыши, а вид
+		// меняется и без него — колесом, полосами, вписыванием. После такого
+		// изменения запомненный узел остаётся от прежнего масштаба и лежит
+		// уже далеко от курсора. Пока он только подсвечивался, это было
+		// незаметно; теперь за него берут фигуру, и щелчок по пустому месту
+		// уводил бы чужую.
+		UpdateHoveredNode(world, _interaction.ActiveOperation == null);
+
 		_interaction.PressedNodeShape = _interaction.HoveredNodeShape;
 		_interaction.PressedNodeWorld = _interaction.HoveredNodeWorld;
 
@@ -3114,6 +3379,10 @@ public sealed partial class MainView : SKGLControl
 
 			_hScroll.Scroll -= HScroll_Scroll;
 			_vScroll.Scroll -= VScroll_Scroll;
+
+			_autoScrollTimer.Stop();
+			_autoScrollTimer.Tick -= AutoScrollTick;
+			_autoScrollTimer.Dispose();
 
 			imageEditTool = null;
 

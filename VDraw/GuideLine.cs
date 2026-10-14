@@ -80,13 +80,31 @@ public sealed class GuideLine : Shape
 		return dist <= tolMm;
 	}
 
-	/// <summary>Единичное направление линии с учётом её поворота.</summary>
+	/// <summary>
+	/// Единичное направление линии с учётом её поворота.
+	///
+	/// Положительный угол означает поворот ПО ЧАСОВОЙ стрелке — одинаково
+	/// для обеих ориентаций.
+	///
+	/// У вертикальной было (sin, cos). Это направление с экранным углом
+	/// 90° − AngleDeg, то есть растущий угол разворачивал линию ПРОТИВ
+	/// часовой, тогда как у горизонтальной (cos, sin) — по часовой.
+	/// Вращение же считается по углу мыши, а он на экране растёт по часовой:
+	/// вертикальная направляющая уезжала навстречу курсору.
+	///
+	/// Знак у синуса это выправляет: экранный угол становится 90° + AngleDeg,
+	/// и обе ориентации поворачиваются в одну сторону. При AngleDeg = 0
+	/// направление прежнее, поэтому неповёрнутые направляющие в старых
+	/// файлах стоят как стояли; у повёрнутой вертикальной угол прочитается
+	/// с обратным знаком — то есть так, как его и задумывали, когда крутили
+	/// мышью.
+	/// </summary>
 	public SKPoint GetDirection()
 	{
 		float angle = AngleDeg * MathF.PI / 180f;
 
 		return Orientation == GuideOrientation.Vertical
-			? new SKPoint(MathF.Sin(angle), MathF.Cos(angle))
+			? new SKPoint(-MathF.Sin(angle), MathF.Cos(angle))
 			: new SKPoint(MathF.Cos(angle), MathF.Sin(angle));
 	}
 
@@ -407,6 +425,17 @@ public sealed class MoveGuideCenterOperation : DragOperation
 		_startCenter = _guide.GetRotationCenterPage();
 	}
 
+	/// <summary>
+	/// Центр — обычная точка, и прилипает он как точка: по обеим
+	/// координатам сразу.
+	///
+	/// Не так, как сама линия. Линию двигают поперёк себя, и ей довольно
+	/// одной координаты — расстояния вдоль нормали; вдоль себя бесконечная
+	/// прямая не сдвигается. Центр же стоит НА линии в определённом месте:
+	/// он задаёт ось вращения и точку отсчёта. Поставить его точно в узел —
+	/// ровно то, ради чего направляющую и крутят вокруг угла детали.
+	/// Прежде он не прилипал вовсе и вставал туда, куда попал курсор.
+	/// </summary>
 	public override void Update(MainView view, EditorInteractionContext ctx, SKPoint pagePoint)
 	{
 		if (_guide == null)
@@ -415,11 +444,37 @@ public sealed class MoveGuideCenterOperation : DragOperation
 		float dx = pagePoint.X - _startMouse.X;
 		float dy = pagePoint.Y - _startMouse.Y;
 
-		_guide.SetRotationCenter(new SKPoint(_startCenter.X + dx, _startCenter.Y + dy));
+		var candidate = new SKPoint(_startCenter.X + dx, _startCenter.Y + dy);
+
+		if (!ctx.AltPressed && Settings.snap_objects)
+		{
+			// Сама направляющая исключается: её собственная линия проходит
+			// через центр, и он прилипал бы к ней же, никуда не двигаясь.
+			var snap = ObjectSnapEngine.SnapMovingPoint(
+				view,
+				new Shape[] { _guide },
+				candidate,
+				Settings.snap_dist);
+
+			ctx.ActiveSnap = snap;
+
+			if (snap != null && snap.IsValid)
+				candidate = new SKPoint(candidate.X + snap.Correction.X, candidate.Y + snap.Correction.Y);
+		}
+		else
+		{
+			ctx.ActiveSnap = null;
+		}
+
+		_guide.SetRotationCenter(candidate);
+
+		view.Invalidate();
 	}
 
 	public override void End(MainView view, EditorInteractionContext ctx, SKPoint pagePoint)
 	{
+		ctx.ActiveSnap = null;
+
 		if (view.CurrentPage != null)
 			view.CurrentPage.doc.need_save = true;
 	}

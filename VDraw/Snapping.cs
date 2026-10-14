@@ -75,7 +75,17 @@ public sealed class SnapResult
 
 public static class ShapeSnapGeometry
 {
-	public static IEnumerable<SnapPointCandidate> GetSnapPoints(Shape shape)
+	/// <summary>
+	/// Точки прилипания фигуры.
+	///
+	/// knownBounds — уже посчитанные мировые габариты, если они есть
+	/// у вызывающего. Нужны ветке по умолчанию: она строит точки именно
+	/// из габаритов, а GetBounds у кривой, размера и текста в области —
+	/// это построение всего мирового пути. Поиск подсвеченного узла считает
+	/// габариты сам и передаёт их сюда, иначе на каждое движение мыши
+	/// выходило бы по два построения на фигуру вместо одного.
+	/// </summary>
+	public static IEnumerable<SnapPointCandidate> GetSnapPoints(Shape shape, SKRect? knownBounds = null)
 	{
 		if (shape == null || !shape.IsVisible)
 			yield break;
@@ -188,18 +198,64 @@ public static class ShapeSnapGeometry
 					foreach (var n in curve.Nodes)
 						yield return new SnapPointCandidate(curve, curve.LocalToWorld(n.Position));
 
-					for (int i = 0; i < curve.Nodes.Count - 1; i++)
+					// Середины сегментов — по контурам и по самой кривой.
+					//
+					// Прежде список узлов перебирался подряд, от первого
+					// до последнего, и середина бралась как полусумма
+					// соседей. Отсюда две беды, и обе выглядели как точка,
+					// взявшаяся ниоткуда.
+					//
+					// Первая: список узлов хранит ВСЕ контуры фигуры подряд.
+					// Между последним узлом одного контура и первым узлом
+					// следующего никакого сегмента нет, а полусумма их
+					// координат исправно выдавала точку — где-нибудь посреди
+					// фигуры, вдали от любой линии.
+					//
+					// Вторая: полусумма концов — это середина ХОРДЫ, а не
+					// кривой. У лепестка, нарисованного одним сегментом
+					// с длинными ручками, хорда проходит поперёк него,
+					// и её середина оказывается внутри лепестка, тогда
+					// как сама кривая идёт вокруг.
+					//
+					// Теперь сегменты берутся из контуров — вместе
+					// с замыкающим у замкнутых, которого прежде не было
+					// вовсе, — а точка считается как значение кубики
+					// в середине параметра.
+					foreach (var range in curve.GetContourRangesForAdorner())
 					{
-						var a = curve.LocalToWorld(curve.Nodes[i].Position);
-						var b = curve.LocalToWorld(curve.Nodes[i + 1].Position);
-						yield return new SnapPointCandidate(curve, Mid(a, b));
+						for (int i = range.Start; i < range.End; i++)
+						{
+							yield return new SnapPointCandidate(
+								curve,
+								curve.LocalToWorld(SegmentMidpoint(curve.Nodes[i], curve.Nodes[i + 1])));
+						}
+
+						if (range.Closed && range.End > range.Start)
+						{
+							yield return new SnapPointCandidate(
+								curve,
+								curve.LocalToWorld(SegmentMidpoint(curve.Nodes[range.End], curve.Nodes[range.Start])));
+						}
 					}
 				}
 				yield break;
 
 			default:
 				{
-					var b = shape.GetBounds();
+					var b = knownBounds ?? shape.GetBounds();
+
+					// Вырожденные габариты пропускаются.
+					//
+					// У фигуры без геометрии — пустого текста, кривой без
+					// узлов, группы без детей — GetBounds отдаёт SKRect.Empty,
+					// то есть прямоугольник (0,0,0,0). Девять его точек
+					// сходятся в одну, и она лежит в НАЧАЛЕ КООРДИНАТ
+					// страницы. На экране появлялась точка прилипания
+					// посреди пустого места, никак не связанная с фигурой,
+					// и объяснить её происхождение было нечем.
+					if (b.Width <= 0f && b.Height <= 0f)
+						yield break;
+
 					foreach (var p in GetRectPoints(b))
 						yield return new SnapPointCandidate(shape, p);
 				}
@@ -216,10 +272,12 @@ public static class ShapeSnapGeometry
 		{
 			case GuideLine guide:
 				{
-					float angle = guide.AngleDeg * MathF.PI / 180f;
-					SKPoint dir = guide.Orientation == GuideOrientation.Vertical
-						? new SKPoint(MathF.Sin(angle), MathF.Cos(angle))
-						: new SKPoint(MathF.Cos(angle), MathF.Sin(angle));
+					// Направление спрашивается у самой направляющей, а
+					// не считается здесь заново. Формула была повторена
+					// слово в слово, и правка знака для вертикальной
+					// ориентации прошла бы мимо этого места: линия
+					// прилипания разошлась бы с нарисованной линией.
+					SKPoint dir = guide.GetDirection();
 
 					const float huge = 100000f;
 					var c = guide.GuidePoint;
@@ -295,6 +353,34 @@ public static class ShapeSnapGeometry
 	/// разных набора точек для одного и того же прямоугольника.
 	/// </summary>
 	public static IEnumerable<SKPoint> GetBoundsPoints(SKRect r) => GetRectPoints(r);
+
+	/// <summary>
+	/// Середина сегмента кривой — точка НА кривой, при t = 0.5.
+	///
+	/// Правило «прямой или кубика» то же, что при построении пути:
+	/// разойдись они, и точка прилипания сошла бы с нарисованной линии.
+	///
+	/// Для кубики B(0.5) = (P0 + 3·C1 + 3·C2 + P3) / 8 — это просто
+	/// формула Безье с подставленной половиной, без вычислений в цикле.
+	/// </summary>
+	private static SKPoint SegmentMidpoint(CurveNode a, CurveNode b)
+	{
+		bool useCubic =
+			a.HasNextControl ||
+			b.HasPrevControl ||
+			a.Type != CurveNodeType.Straight ||
+			b.Type != CurveNodeType.Straight;
+
+		if (!useCubic)
+			return Mid(a.Position, b.Position);
+
+		var c1 = a.HasNextControl ? a.ControlNext : a.Position;
+		var c2 = b.HasPrevControl ? b.ControlPrev : b.Position;
+
+		return new SKPoint(
+			(a.Position.X + 3f * c1.X + 3f * c2.X + b.Position.X) * 0.125f,
+			(a.Position.Y + 3f * c1.Y + 3f * c2.Y + b.Position.Y) * 0.125f);
+	}
 
 	private static IEnumerable<SKPoint> GetRectPoints(SKRect r)
 	{
@@ -2075,33 +2161,58 @@ public static class ShapeNodePicker
 
 		foreach (var shape in EnumerateNodeSources(shapes))
 		{
-			// Точки габаритов здесь НЕ добавляются.
+			// Сначала собственные точки фигуры, потом точки габаритов.
 			//
-			// Этот поиск работает на каждое движение мыши и по всем фигурам
-			// листа: он ищет узел под курсором для подсветки. Габариты
-			// потребовали бы GetBounds у каждой фигуры, а у текста и размера
-			// это построение всего мирового пути вместе с контурами глифов —
-			// ровно то, из-за чего в GetSnapPoints для них заведены
-			// отдельные ветки.
+			// Порядок решает совпадения: сравнение ниже строгое, и при
+			// равном расстоянии остаётся первый найденный. У неповёрнутого
+			// прямоугольника угол габаритов лежит ровно на его собственном
+			// угле, и подсветить разумнее собственный — он принадлежит
+			// самой геометрии, а не рамке вокруг неё.
+			// Габариты считаются ЗДЕСЬ и отдаются в GetSnapPoints готовыми:
+			// ветка по умолчанию строит свои точки из них же, и без передачи
+			// каждая такая фигура считала бы их дважды за одно движение мыши.
+			var bounds = shape.GetBounds();
+
+			foreach (var candidate in ShapeSnapGeometry.GetSnapPoints(shape, bounds))
+				Consider(candidate);
+
+			// Точки габаритов: четыре угла, четыре середины сторон и центр.
 			//
-			// Для перетаскивания габариты нужны, и там они есть: точку
-			// отсчёта выбирает FindNearestUnbounded, который зовут один раз
-			// за операцию и только по выделенным фигурам.
-			foreach (var candidate in ShapeSnapGeometry.GetSnapPoints(shape))
-			{
-				float dx = candidate.WorldPoint.X - pagePoint.X;
-				float dy = candidate.WorldPoint.Y - pagePoint.Y;
-				float d2 = dx * dx + dy * dy;
+			// Прежде их здесь не было — из-за цены. Поиск идёт на каждое
+			// движение мыши по всем фигурам листа, а GetBounds у текста
+			// и у размера строил весь мировой путь вместе с контурами
+			// глифов. Отсюда и выходило, что углы рамки подсвечивались
+			// у прямоугольника и у группы — они отдают их как СВОИ точки
+			// в GetSnapPoints, — а у кривой, эллипса и текста не
+			// подсвечивались вовсе.
+			//
+			// Цена с тех пор упала: габариты обычного текста считаются
+			// из метрик шрифта, без построения пути. Дороже всего остались
+			// кривая, размер, текст в области и вдоль контура — им путь
+			// строить приходится. Польза при этом прямая: угол и центр
+			// рамки — это места, за которые фигуру несут и которыми её
+			// совмещают с другими, и у кривой их взять больше неоткуда.
+			if (bounds.Width <= 0f && bounds.Height <= 0f)
+				continue;
 
-				if (d2 > maxDistSq || d2 >= bestSq)
-					continue;
-
-				bestSq = d2;
-				best = candidate;
-			}
+			foreach (var p in ShapeSnapGeometry.GetBoundsPoints(bounds))
+				Consider(new SnapPointCandidate(shape, p));
 		}
 
 		return best;
+
+		void Consider(SnapPointCandidate candidate)
+		{
+			float dx = candidate.WorldPoint.X - pagePoint.X;
+			float dy = candidate.WorldPoint.Y - pagePoint.Y;
+			float d2 = dx * dx + dy * dy;
+
+			if (d2 > maxDistSq || d2 >= bestSq)
+				return;
+
+			bestSq = d2;
+			best = candidate;
+		}
 	}
 
 	/// <summary>
