@@ -27,6 +27,9 @@ public partial class MainForm
 		ThemeImages.Add(menu_obj_measurement_distance, "measure_dist", ImageSlot.Foreground);
 		ThemeImages.Add(measureAngleToolStripMenuItem, "measure_angle", ImageSlot.Foreground);
 		ThemeImages.Add(convertToCurveToolStripMenuItem, "convert_to_curve", ImageSlot.Foreground);
+		ThemeImages.Add(menu_obj_text, "text", ImageSlot.Foreground);
+		ThemeImages.Add(menu_obj_image, "image", ImageSlot.Foreground);
+		ThemeImages.Add(customShapesToolStripMenuItem, "custom_shapes", ImageSlot.Foreground);
 		ThemeImages.Add(page_background_color_but, "transparentbg_mini", ImageSlot.Background);
 		ThemeImages.Add(s_scissors_line_but, "scissors_line1", ImageSlot.Foreground);
 		ThemeImages.Add(s_scissors_curve_but, "scissors_curve1", ImageSlot.Foreground);

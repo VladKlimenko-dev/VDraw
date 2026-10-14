@@ -1345,8 +1345,23 @@ public partial class MainForm : Form
 
 		// Конвертация нужна только там, где есть что конвертировать: набор
 		// из одних кривых и картинок операцию не меняет.
-		s_convert_to_curve_but.Enabled =
-			anyShape && selection!.Any(CanConvertToCurve);
+		bool canConvertToCurve = anyShape && selection!.Any(CanConvertToCurve);
+
+		s_convert_to_curve_but.Enabled = canConvertToCurve;
+
+		// Пункты меню Objects живут по тем же правилам, что кнопка панели
+		// и контекстное меню холста.
+		//
+		// В растр переводится любое выделение — там нечему не подойти,
+		// снимок снимается с того, что видно. В кривые — только то, что
+		// кривыми ещё не стало.
+		//
+		// Прежде оба пункта оставались доступными всегда, и щелчок
+		// по пустому выделению просто ничего не делал: обработчик
+		// выходил в первой строке, а пользователь оставался в догадках,
+		// сработало ли.
+		convertToCurveToolStripMenuItem.Enabled = canConvertToCurve;
+		convertToBitmapToolStripMenuItem.Enabled = anyShape;
 
 		s_group_but.Enabled = count >= 2;
 
@@ -4390,6 +4405,18 @@ public partial class MainForm : Form
 		return shape is not null
 			&& shape is not CurveShape
 			&& shape is not GroupShape;
+	}
+
+	/// <summary>
+	/// Пункт меню «Objects → Convert to bitmap».
+	///
+	/// Заменяет выделенные фигуры одним изображением. Работа — в
+	/// ConvertSelectionToBitmap: тем же пунктом пользуется и контекстное
+	/// меню холста.
+	/// </summary>
+	private void convertToBitmapToolStripMenuItem_Click(object sender, EventArgs e)
+	{
+		ConvertSelectionToBitmap();
 	}
 
 	private void s_convert_to_curve_but_Click(object sender, EventArgs e)

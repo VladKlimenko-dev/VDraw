@@ -73,6 +73,7 @@ namespace VDraw
 			menu_obj_import_visio = new ToolStripMenuItem();
 			toolStripSeparator1 = new ToolStripSeparator();
 			convertToCurveToolStripMenuItem = new ToolStripMenuItem();
+			convertToBitmapToolStripMenuItem = new ToolStripMenuItem();
 			helpToolStripMenuItem = new ToolStripMenuItem();
 			menu_about = new ToolStripMenuItem();
 			menu_manual = new ToolStripMenuItem();
@@ -353,7 +354,7 @@ namespace VDraw
 			// 
 			// menu_objects
 			// 
-			menu_objects.DropDownItems.AddRange(new ToolStripItem[] { menu_obj_lines, menu_obj_curve, menu_obj_rect, menu_obj_rounded_rect, menu_obj_circle2p, menu_obj_circle3p, menu_obj_ellispe3p, menu_obj_ellipse5p, menu_obj_poly, menu_obj_text, menu_obj_image, menu_obj_measurement_distance, measureAngleToolStripMenuItem, customShapesToolStripMenuItem, toolStripSeparator1, convertToCurveToolStripMenuItem });
+			menu_objects.DropDownItems.AddRange(new ToolStripItem[] { menu_obj_lines, menu_obj_curve, menu_obj_rect, menu_obj_rounded_rect, menu_obj_circle2p, menu_obj_circle3p, menu_obj_ellispe3p, menu_obj_ellipse5p, menu_obj_poly, menu_obj_text, menu_obj_image, menu_obj_measurement_distance, measureAngleToolStripMenuItem, customShapesToolStripMenuItem, toolStripSeparator1, convertToCurveToolStripMenuItem, convertToBitmapToolStripMenuItem });
 			menu_objects.Name = "menu_objects";
 			menu_objects.Size = new Size(73, 24);
 			menu_objects.Text = "Objects";
@@ -364,7 +365,7 @@ namespace VDraw
 			menu_obj_lines.Image = Properties.Resources.lines;
 			menu_obj_lines.ImageScaling = ToolStripItemImageScaling.None;
 			menu_obj_lines.Name = "menu_obj_lines";
-			menu_obj_lines.Size = new Size(224, 48);
+			menu_obj_lines.Size = new Size(248, 48);
 			menu_obj_lines.Text = "Lines";
 			menu_obj_lines.TextAlign = ContentAlignment.MiddleLeft;
 			menu_obj_lines.Click += menu_obj_lines_Click;
@@ -375,7 +376,7 @@ namespace VDraw
 			menu_obj_curve.Image = Properties.Resources.curve;
 			menu_obj_curve.ImageScaling = ToolStripItemImageScaling.None;
 			menu_obj_curve.Name = "menu_obj_curve";
-			menu_obj_curve.Size = new Size(224, 48);
+			menu_obj_curve.Size = new Size(248, 48);
 			menu_obj_curve.Text = "Curve";
 			// 
 			// menu_obj_rect
@@ -384,7 +385,7 @@ namespace VDraw
 			menu_obj_rect.Image = Properties.Resources.rect;
 			menu_obj_rect.ImageScaling = ToolStripItemImageScaling.None;
 			menu_obj_rect.Name = "menu_obj_rect";
-			menu_obj_rect.Size = new Size(224, 48);
+			menu_obj_rect.Size = new Size(248, 48);
 			menu_obj_rect.Text = "Rectangle";
 			// 
 			// menu_obj_rounded_rect
@@ -393,7 +394,7 @@ namespace VDraw
 			menu_obj_rounded_rect.Image = Properties.Resources.rounded_rect;
 			menu_obj_rounded_rect.ImageScaling = ToolStripItemImageScaling.None;
 			menu_obj_rounded_rect.Name = "menu_obj_rounded_rect";
-			menu_obj_rounded_rect.Size = new Size(224, 48);
+			menu_obj_rounded_rect.Size = new Size(248, 48);
 			menu_obj_rounded_rect.Text = "Rounded Rectangle";
 			// 
 			// menu_obj_circle2p
@@ -402,7 +403,7 @@ namespace VDraw
 			menu_obj_circle2p.Image = Properties.Resources.circle2p;
 			menu_obj_circle2p.ImageScaling = ToolStripItemImageScaling.None;
 			menu_obj_circle2p.Name = "menu_obj_circle2p";
-			menu_obj_circle2p.Size = new Size(224, 48);
+			menu_obj_circle2p.Size = new Size(248, 48);
 			menu_obj_circle2p.Text = "Circle 2-points";
 			// 
 			// menu_obj_circle3p
@@ -411,7 +412,7 @@ namespace VDraw
 			menu_obj_circle3p.Image = Properties.Resources.circle3p;
 			menu_obj_circle3p.ImageScaling = ToolStripItemImageScaling.None;
 			menu_obj_circle3p.Name = "menu_obj_circle3p";
-			menu_obj_circle3p.Size = new Size(224, 48);
+			menu_obj_circle3p.Size = new Size(248, 48);
 			menu_obj_circle3p.Text = "Circle 3-points";
 			// 
 			// menu_obj_ellispe3p
@@ -420,7 +421,7 @@ namespace VDraw
 			menu_obj_ellispe3p.Image = Properties.Resources.ellipse3p;
 			menu_obj_ellispe3p.ImageScaling = ToolStripItemImageScaling.None;
 			menu_obj_ellispe3p.Name = "menu_obj_ellispe3p";
-			menu_obj_ellispe3p.Size = new Size(224, 48);
+			menu_obj_ellispe3p.Size = new Size(248, 48);
 			menu_obj_ellispe3p.Text = "Ellipse 3-points";
 			// 
 			// menu_obj_ellipse5p
@@ -429,7 +430,7 @@ namespace VDraw
 			menu_obj_ellipse5p.Image = Properties.Resources.ellipse5p;
 			menu_obj_ellipse5p.ImageScaling = ToolStripItemImageScaling.None;
 			menu_obj_ellipse5p.Name = "menu_obj_ellipse5p";
-			menu_obj_ellipse5p.Size = new Size(224, 48);
+			menu_obj_ellipse5p.Size = new Size(248, 48);
 			menu_obj_ellipse5p.Text = "Ellipse 5-points";
 			// 
 			// menu_obj_poly
@@ -438,23 +439,26 @@ namespace VDraw
 			menu_obj_poly.Image = Properties.Resources.poly;
 			menu_obj_poly.ImageScaling = ToolStripItemImageScaling.None;
 			menu_obj_poly.Name = "menu_obj_poly";
-			menu_obj_poly.Size = new Size(224, 48);
+			menu_obj_poly.Size = new Size(248, 48);
 			menu_obj_poly.Text = "Polygon";
 			// 
 			// menu_obj_text
 			// 
 			menu_obj_text.AutoSize = false;
+			menu_obj_text.Image = (Image)resources.GetObject("menu_obj_text.Image");
 			menu_obj_text.ImageScaling = ToolStripItemImageScaling.None;
 			menu_obj_text.Name = "menu_obj_text";
-			menu_obj_text.Size = new Size(224, 48);
+			menu_obj_text.Padding = new Padding(0);
+			menu_obj_text.Size = new Size(248, 48);
 			menu_obj_text.Text = "Text";
 			// 
 			// menu_obj_image
 			// 
 			menu_obj_image.AutoSize = false;
+			menu_obj_image.Image = Properties.Resources.image;
 			menu_obj_image.ImageScaling = ToolStripItemImageScaling.None;
 			menu_obj_image.Name = "menu_obj_image";
-			menu_obj_image.Size = new Size(224, 48);
+			menu_obj_image.Size = new Size(248, 48);
 			menu_obj_image.Text = "Image";
 			// 
 			// menu_obj_measurement_distance
@@ -463,7 +467,7 @@ namespace VDraw
 			menu_obj_measurement_distance.Image = Properties.Resources.measure_dist;
 			menu_obj_measurement_distance.ImageScaling = ToolStripItemImageScaling.None;
 			menu_obj_measurement_distance.Name = "menu_obj_measurement_distance";
-			menu_obj_measurement_distance.Size = new Size(224, 48);
+			menu_obj_measurement_distance.Size = new Size(248, 48);
 			menu_obj_measurement_distance.Text = "Measure distance";
 			// 
 			// measureAngleToolStripMenuItem
@@ -471,14 +475,16 @@ namespace VDraw
 			measureAngleToolStripMenuItem.Image = Properties.Resources.measure_angle;
 			measureAngleToolStripMenuItem.ImageScaling = ToolStripItemImageScaling.None;
 			measureAngleToolStripMenuItem.Name = "measureAngleToolStripMenuItem";
-			measureAngleToolStripMenuItem.Size = new Size(246, 50);
+			measureAngleToolStripMenuItem.Size = new Size(248, 50);
 			measureAngleToolStripMenuItem.Text = "Measure angle";
 			// 
 			// customShapesToolStripMenuItem
 			// 
 			customShapesToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { menu_obj_add_to_custom_shapes, menu_obj_import_vdrs, menu_obj_import_visio });
+			customShapesToolStripMenuItem.Image = Properties.Resources.custom_shapes;
+			customShapesToolStripMenuItem.ImageScaling = ToolStripItemImageScaling.None;
 			customShapesToolStripMenuItem.Name = "customShapesToolStripMenuItem";
-			customShapesToolStripMenuItem.Size = new Size(246, 50);
+			customShapesToolStripMenuItem.Size = new Size(248, 50);
 			customShapesToolStripMenuItem.Text = "Custom shapes";
 			// 
 			// menu_obj_add_to_custom_shapes
@@ -502,7 +508,7 @@ namespace VDraw
 			// toolStripSeparator1
 			// 
 			toolStripSeparator1.Name = "toolStripSeparator1";
-			toolStripSeparator1.Size = new Size(243, 6);
+			toolStripSeparator1.Size = new Size(245, 6);
 			// 
 			// convertToCurveToolStripMenuItem
 			// 
@@ -510,8 +516,16 @@ namespace VDraw
 			convertToCurveToolStripMenuItem.Image = Properties.Resources.convert_to_curve;
 			convertToCurveToolStripMenuItem.ImageScaling = ToolStripItemImageScaling.None;
 			convertToCurveToolStripMenuItem.Name = "convertToCurveToolStripMenuItem";
-			convertToCurveToolStripMenuItem.Size = new Size(224, 48);
+			convertToCurveToolStripMenuItem.Size = new Size(248, 48);
 			convertToCurveToolStripMenuItem.Text = "Convert to curve";
+			convertToCurveToolStripMenuItem.Click += convertToCurveToolStripMenuItem_Click;
+			// 
+			// convertToBitmapToolStripMenuItem
+			// 
+			convertToBitmapToolStripMenuItem.Name = "convertToBitmapToolStripMenuItem";
+			convertToBitmapToolStripMenuItem.Size = new Size(248, 50);
+			convertToBitmapToolStripMenuItem.Text = "Convert to bitmap";
+			convertToBitmapToolStripMenuItem.Click += convertToBitmapToolStripMenuItem_Click;
 			// 
 			// helpToolStripMenuItem
 			// 
@@ -2219,5 +2233,6 @@ namespace VDraw
 		private ToolStripMenuItem settingsToolStripMenuItem;
 		private ToolStripSeparator toolStripMenuItem2;
 		private ToolStripMenuItem menu_settings;
+		private ToolStripMenuItem convertToBitmapToolStripMenuItem;
 	}
 }
