@@ -10,27 +10,6 @@
     <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
     <StartupObject>VDraw.Program</StartupObject>
     <ApplicationIcon>Resources\vdraw.ico</ApplicationIcon>
-
-    <!--
-      Пути к файлам внутри .resx считаются от папки ПРОЕКТА.
-
-      Редактор ресурсов Visual Studio пишет их от папки самого .resx:
-      для Properties\Resources.resx выходит ..\Resources\имя.png —
-      шаг вверх из Properties и вниз в Resources. Собирается же всё
-      иначе: GenerateResource отсчитывает от папки проекта, шаг вверх
-      уводит наружу, и сборка падает на MSB3554 «Could not find a part
-      of the path ...\VDraw\Resources\free_poly.png» — каталог уровнем
-      выше настоящего.
-
-      Поэтому пути в Properties\Resources.resx записаны без шага вверх,
-      а свойство задано явно: иначе смена значения по умолчанию
-      в очередной версии MSBuild сломала бы их все разом.
-
-      ВАЖНО: добавив картинку через редактор ресурсов, проверьте путь
-      в .resx. Редактор снова впишет ..\Resources\ — ведущие две точки
-      надо убрать.
-    -->
-    <UseSourcePath>false</UseSourcePath>
   </PropertyGroup>
 
   <ItemGroup>
