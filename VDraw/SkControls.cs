@@ -242,19 +242,16 @@ public sealed class SkNumericUpDown : SkControl
 	}
 
 	/// <summary>
-	/// Готовит поле к набору с нуля: весь текст выделен, ввод цифры
-	/// заменяет его целиком.
+	/// Поле ввода счётчика.
 	///
-	/// Нужно переходу по табуляции. Придя в поле, пользователь почти
-	/// всегда набирает новое число, а не правит старое, — как в любой
-	/// экранной форме. Оставленная каретка в конце строки заставляла бы
-	/// перед каждым набором стирать прежнее значение вручную.
+	/// Счётчик — не одиночный контрол, а связка из поля и двух стрелок,
+	/// и активным должно числиться именно поле: оно хранит каретку
+	/// и выделение, и оно же лежит в списке обхода по табуляции. Пока
+	/// активным числился сам счётчик, его не удавалось найти в этом списке,
+	/// и следующая табуляция уходила на первое поле панели вместо
+	/// соседнего.
 	/// </summary>
-	public void SelectAllForEditing()
-	{
-		_box.Focused = true;
-		_box.SelectAll();
-	}
+	public SkNumTextBox Editor => _box;
 
 	private void CommitText()
 	{
@@ -1927,6 +1924,19 @@ public class SkTextBox : SkControl
 	protected virtual void RaiseTextChanged() => TextChanged?.Invoke(Text);
 	protected virtual void RaiseEditingFinished() => EditingFinished?.Invoke(Text);
 
+	/// <summary>
+	/// Завершает правку: набранное применяется так же, как по Enter
+	/// или при уходе фокуса.
+	///
+	/// Был только у числового поля, из-за чего имя фигуры при переходе
+	/// по табуляции не применялось вовсе: панель умела завершить правку
+	/// числа и не умела — строки.
+	/// </summary>
+	public void FinishEditing()
+	{
+		RaiseEditingFinished();
+	}
+
 	private int _caretIndex = 0;
 	private int _selectionStart = 0;
 	private int _selectionLength = 0;
@@ -3335,10 +3345,5 @@ public class SkNumTextBox : SkTextBox
 		Text = current;
 		CaretIndex = selStart + insertText.Length;
 		TextChanged?.Invoke(Text);
-	}
-
-	public void FinishEditing()
-	{
-		RaiseEditingFinished();
 	}
 }

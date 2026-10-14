@@ -215,6 +215,14 @@ public sealed class SkPropertyPanelControl : Control
 
 	public void RebuildForSelection()
 	{
+		// Ссылка на поле с вводом сбрасывается вместе с деревом.
+		//
+		// Пересборка выбрасывает все контролы, и прежняя ссылка указывала
+		// бы на мёртвый. Для табуляции это значило бы «поле не найдено»
+		// и прыжок на самое первое вместо следующего; саму же правку
+		// такого контрола применить было бы уже некуда.
+		_focused = null;
+
 		_xEditor = null;
 		_yEditor = null;
 		_wEditor = null;
@@ -744,6 +752,27 @@ public sealed class SkPropertyPanelControl : Control
 		var ev = ToSk(e);
 
 		bool closedAny = _root.CloseDropDownsOutside(ev.Location);
+
+		// Набранное применяется ДО поиска контрола под курсором.
+		//
+		// Применение может пересобрать панель целиком: ширина и высота
+		// меняют геометрию фигуры, а на это панель отвечает полной
+		// пересборкой. Искать цель до применения значило бы найти контрол,
+		// который через мгновение будет выброшен: щелчок уходил бы
+		// в пустоту, каретка не появлялась, и панель навсегда считала,
+		// что идёт набор текста.
+		// Щелчок ВНУТРИ того же поля ничего не применяет: там ставят
+		// каретку, а не уходят из поля. Применение посреди набора мешало бы:
+		// пустое имя означает отказ от переименования, и поле вернуло бы
+		// прежнее значение прямо под курсором.
+		bool insideFocused = _focused != null && _focused.AbsoluteBounds.Contains(ev.Location);
+
+		if (!insideFocused)
+		{
+			CommitFocused();
+			_focused = null;
+		}
+
 		var target = _root.FindTopMostOverlay(ev.Location) ?? _root.FindTopMost(ev.Location);
 
 		// Щелчок по стрелкам счётчика не делает его активным контролом.
@@ -1066,10 +1095,24 @@ public sealed class SkPropertyPanelControl : Control
 	/// Переводит ввод на следующее поле панели. Возвращает false, если
 	/// переводить не на что.
 	///
-	/// Значение текущего поля применяется само: SetFocused завершает
-	/// правку предыдущего контрола. Отдельно вызывать применение здесь
-	/// было бы вторым местом, где это делается, — и однажды они разошлись
-	/// бы.
+	/// Порядок действий здесь важнее самого перехода: СНАЧАЛА применяется
+	/// набранное, и только ПОТОМ выбирается, куда идти.
+	///
+	/// Причина в том, что применение может пересобрать панель целиком.
+	/// Ширина и высота меняют геометрию фигуры, на это поднимается
+	/// SelectionGeometryChanged, а панель отвечает на него полной
+	/// пересборкой: все поля выбрасываются и создаются заново. Прежде
+	/// цель перехода бралась из списка, собранного ДО применения, —
+	/// и фокус вставал на выброшенный контрол. Со стороны это выглядело
+	/// так: правишь ширину, жмёшь TAB, и фокус пропадает совсем.
+	///
+	/// Отсюда же брался и перебор по кругу из двух полей. Умерший контрол
+	/// не находится в заново собранном списке, IndexOf отдаёт минус
+	/// единицу, и следующий TAB уходил на самое первое поле — «имя, X,
+	/// имя, X» без конца.
+	///
+	/// Номер поля переживает пересборку: набор строк от правки значения
+	/// не меняется, и поле с тем же номером — то же самое поле.
 	///
 	/// По кругу: с последнего поля ввод возвращается на первое. Панель
 	/// короткая, и упереться в её конец, перебирая поля табуляцией,
@@ -1085,17 +1128,52 @@ public sealed class SkPropertyPanelControl : Control
 
 		int current = _focused == null ? -1 : editors.IndexOf(_focused);
 
+		int target = current + (backwards ? -1 : 1);
+
+		// Применение и обнуление ссылки. Обнуление обязательно: иначе
+		// SetFocused ниже увидит прежний контрол и завершит его правку
+		// во второй раз, положив в историю лишний шаг.
+		CommitFocused();
+		_focused = null;
+
+		editors.Clear();
+		CollectEditors(_root, editors);
+
+		if (editors.Count == 0)
+			return false;
+
+		// Остаток от деления считается по НОВОМУ числу полей: пересборка
+		// могла его изменить, и приведение по старому вывело бы за край.
 		int next = current < 0
 			? (backwards ? editors.Count - 1 : 0)
-			: (current + (backwards ? -1 : 1) + editors.Count) % editors.Count;
+			: ((target % editors.Count) + editors.Count) % editors.Count;
 
 		SetFocused(editors[next]);
 		ScrollIntoView(editors[next]);
 
-		if (editors[next] is SkNumericUpDown spinner)
-			spinner.SelectAllForEditing();
+		// Многострочное поле не выделяется целиком: там правят абзац,
+		// и первое же нажатие клавиши стёрло бы его весь. У однострочного
+		// наоборот: придя в него, набирают новое значение, а не правят
+		// старое, — как в любой экранной форме.
+		if (editors[next] is SkTextBox { Multiline: false } box)
+			box.SelectAll();
 
 		return true;
+	}
+
+	/// <summary>
+	/// Завершает правку поля, в котором стоит ввод.
+	///
+	/// Строковое поле завершается наравне с числовым. Прежде умело
+	/// завершаться только числовое, и имя фигуры, набранное перед
+	/// табуляцией, пропадало без следа.
+	/// </summary>
+	private void CommitFocused()
+	{
+		if (_focused is SkNumericUpDown nud)
+			nud.CommitEditing();
+		else if (_focused is SkTextBox box)
+			box.FinishEditing();
 	}
 
 	/// <summary>
@@ -1105,6 +1183,17 @@ public sealed class SkPropertyPanelControl : Control
 	/// в панель, то есть с тем, что видит пользователь сверху вниз.
 	/// Сортировать по координатам не нужно и вредно: у свёрнутой группы
 	/// координаты не обновляются, и поля из неё перемешались бы с чужими.
+	///
+	/// От счётчика берётся его ПОЛЕ ВВОДА, а не он сам. Прежде обход
+	/// заходил внутрь счётчика и добавлял его поле ВТОРЫМ пунктом, так
+	/// что табуляция останавливалась на каждой строке дважды. Поле же
+	/// выбрано из этих двух потому, что активным контролом панели
+	/// становится именно оно — и когда в счётчик приходят мышью, и когда
+	/// табуляцией. Запиши сюда счётчик, и щелчок мышью ломал бы поиск
+	/// текущей позиции в списке.
+	///
+	/// В свёрнутый раздел обход не заходит: его полей не видно, и уводить
+	/// в них ввод — всё равно что уводить его за пределы панели.
 	/// </summary>
 	private static void CollectEditors(SkControl control, List<SkControl> result)
 	{
@@ -1113,8 +1202,20 @@ public sealed class SkPropertyPanelControl : Control
 			if (!child.Visible || !child.Enabled)
 				continue;
 
-			if (child is SkNumericUpDown or SkTextBox)
-				result.Add(child);
+			if (child is SkCollapsePanel { Expanded: false })
+				continue;
+
+			if (child is SkNumericUpDown spinner)
+			{
+				result.Add(spinner.Editor);
+				continue;
+			}
+
+			if (child is SkTextBox textBox)
+			{
+				result.Add(textBox);
+				continue;
+			}
 
 			CollectEditors(child, result);
 		}
@@ -1146,13 +1247,18 @@ public sealed class SkPropertyPanelControl : Control
 
 	private void SetFocused(SkControl? control)
 	{
+		// Счётчик подменяется своим полем ввода.
+		//
+		// Мышь приводит сюда сам счётчик: его FindTopMost отдаёт себя,
+		// не спускаясь к детям. Табуляция приводит поле — оно и стоит
+		// в списке обхода. Пока эти два пути расходились, первая
+		// табуляция после щелчка мышью не находила текущего поля в списке
+		// и уводила ввод на самое первое поле панели.
+		if (control is SkNumericUpDown spinner)
+			control = spinner.Editor;
+
 		if (!ReferenceEquals(_focused, control))
-		{
-			if (_focused is SkNumericUpDown oldNud)
-				oldNud.CommitEditing();
-			else if (_focused is SkNumTextBox oldNumBox)
-				oldNumBox.FinishEditing();
-		}
+			CommitFocused();
 
 		ClearFocus(_root);
 		_focused = control;
