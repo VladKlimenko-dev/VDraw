@@ -647,7 +647,15 @@ public sealed class EditorInteractionContext
 
 	public int PendingNodeToggleIndex { get; set; } = -1;
 
-	public SKPoint PendingNodeTogglePoint { get; set; }
+	/// <summary>
+	/// Щёлкнули с Ctrl или без.
+	///
+	/// С Ctrl узел переключается — добавляется к выбранным или убирается
+	/// из них. Без Ctrl выделение сворачивается до одного этого узла.
+	/// Отложены оба по одной причине: на нажатии ещё неизвестно, щёлкнули
+	/// по узлу или взялись за него, чтобы нести связку выбранных.
+	/// </summary>
+	public bool PendingNodeToggleAdditive { get; set; }
 
 	public SKPoint ActiveSelectionCyclePoint { get; set; }
 	public List<Shape> ActiveSelectionCycleHits { get; } = new();
@@ -1647,7 +1655,7 @@ public sealed class SelectTool : IEditorTool
 							// переключим на отпускании, если протяжки не было.
 							ctx.PendingNodeToggleCurve = curveNodeShape;
 							ctx.PendingNodeToggleIndex = hit.CurveNodeIndex;
-							ctx.PendingNodeTogglePoint = pagePoint;
+							ctx.PendingNodeToggleAdditive = true;
 
 							node.Focused = true;
 
@@ -1683,6 +1691,22 @@ public sealed class SelectTool : IEditorTool
 									pagePoint);
 								return;
 							}
+
+							// Узел уже выбран, и выбран он может быть не один.
+							//
+							// Щелчок без сочетаний означает «оставить выбранным
+							// только этот», но на нажатии такое решение принимать
+							// нельзя: ровно с нажатия на одном из выбранных узлов
+							// начинается и перенос всей связки. Сбрось выделение
+							// здесь — и тащить несколько узлов стало бы нечем.
+							//
+							// Поэтому сворачивание откладывается до отпускания
+							// и выполняется, только если мышь не сдвинулась.
+							ctx.PendingNodeToggleCurve = curveNodeShape;
+							ctx.PendingNodeToggleIndex = hit.CurveNodeIndex;
+							ctx.PendingNodeToggleAdditive = false;
+
+							node.Focused = true;
 						}
 
 						if (selectedCount > 1)
@@ -2254,34 +2278,6 @@ public sealed class SelectTool : IEditorTool
 
 	public void OnMouseUp(MainView view, EditorInteractionContext ctx, SKPoint pagePoint, MouseButtons button)
 	{
-		if (button != MouseButtons.Left)
-			return;
-
-		var curve = ctx.PendingNodeToggleCurve;
-		int index = ctx.PendingNodeToggleIndex;
-
-		ctx.PendingNodeToggleCurve = null;
-		ctx.PendingNodeToggleIndex = -1;
-
-		if (curve == null || index < 0 || index >= curve.Nodes.Count)
-			return;
-
-		// Мышь уехала — значит это было перемещение с ограничением по оси,
-		// а не выбор узла. Выбор в таком случае не трогаем.
-		float dx = pagePoint.X - ctx.PendingNodeTogglePoint.X;
-		float dy = pagePoint.Y - ctx.PendingNodeTogglePoint.Y;
-
-		float tolerance = view.HitToleranceUom();
-
-		if (dx * dx + dy * dy > tolerance * tolerance)
-			return;
-
-		var node = curve.Nodes[index];
-
-		node.Selected = !node.Selected;
-		node.Focused = true;
-
-		view.Invalidate();
 	}
 
 	public void OnKeyDown(MainView view, EditorInteractionContext ctx, Keys keyData)
@@ -2290,6 +2286,71 @@ public sealed class SelectTool : IEditorTool
 
 	public void DrawOverlay(SKCanvas canvas, MainView view, EditorInteractionContext ctx)
 	{
+	}
+}
+
+/// <summary>
+/// Разбор отложенного щелчка по узлу кривой.
+///
+/// Живёт отдельно от инструмента, потому что зовётся не из него.
+/// MainView передаёт отпускание кнопки инструменту ТОЛЬКО когда протяжки
+/// не было: если щелчок запустил операцию, управление уходит в её End,
+/// и до инструмента не доходит вовсе. А здесь как раз тот случай — нажатие
+/// на уже выбранном узле СРАЗУ запускает перенос, чтобы связку узлов можно
+/// было потащить одним движением. Отсюда и бралась неработающая отмена
+/// выделения по Ctrl: решение откладывалось до отпускания, а отпускание
+/// до него не доходило.
+/// </summary>
+public static class PendingCurveNodeClick
+{
+	/// <param name="wasClick">
+	/// Решение «щелчок, а не протяжка» принимает вид — тем же мерилом,
+	/// которым пользуется сам.
+	///
+	/// Своя мерка здесь была вчетверо грубее: шесть экранных точек против
+	/// одной. Протяжка на две-три точки успевала сдвинуть узлы и записать
+	/// шаг в историю, а потом попадала в «щелчок» и сворачивала выделение
+	/// до одного узла — следующее движение несло уже не связку, а один
+	/// узел из неё.
+	/// </param>
+	public static void Resolve(
+		MainView view,
+		EditorInteractionContext ctx,
+		bool wasClick)
+	{
+		var curve = ctx.PendingNodeToggleCurve;
+		int index = ctx.PendingNodeToggleIndex;
+		bool additive = ctx.PendingNodeToggleAdditive;
+
+		// Снимается всегда, каким бы путём метод ни вышел: оставшееся
+		// намерение сработало бы на следующем, совсем постороннем щелчке.
+		ctx.PendingNodeToggleCurve = null;
+		ctx.PendingNodeToggleIndex = -1;
+		ctx.PendingNodeToggleAdditive = false;
+
+		if (!wasClick || curve == null || index < 0 || index >= curve.Nodes.Count)
+			return;
+
+		var node = curve.Nodes[index];
+
+		if (additive)
+		{
+			node.Selected = !node.Selected;
+		}
+		else
+		{
+			// Щелчок без сочетаний оставляет выбранным один узел.
+			foreach (var n in curve.Nodes)
+				n.Selected = false;
+
+			node.Selected = true;
+		}
+
+		// Снятый с выбора узел не остаётся и ведущим: его рычаги рисуются
+		// по этому признаку, и висели бы они у невыбранного узла.
+		node.Focused = node.Selected;
+
+		view.Invalidate();
 	}
 }
 

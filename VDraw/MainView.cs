@@ -2737,6 +2737,21 @@ public sealed partial class MainView : SKGLControl
 				_interaction.ToolHandler?.OnMouseUp(this, _interaction, world, e.Button);
 			}
 
+			// Отложенный щелчок по узлу кривой разбирается ПОСЛЕ обеих веток.
+			//
+			// Инструмент получает отпускание только во второй из них, когда
+			// протяжки не было. Нажатие же на уже выбранном узле запускает
+			// перенос сразу — иначе связку выбранных узлов нельзя было бы
+			// потащить одним движением, — и управление уходит в первую ветку,
+			// мимо инструмента. Поэтому разбор стоит здесь, общий для обеих.
+			if (e.Button == MouseButtons.Left)
+			{
+				PendingCurveNodeClick.Resolve(
+					this,
+					_interaction,
+					IsClickWithoutDrag(_interaction.MouseDownPage, world));
+			}
+
 			if (e.Button == MouseButtons.Left && !IsClickWithoutDrag(_interaction.MouseDownPage, world))
 				SelectionCycleHelper.Reset(_interaction);
 
@@ -2871,6 +2886,16 @@ public sealed partial class MainView : SKGLControl
 		_interaction.PendingGuideCenterTogglePoint = SKPoint.Empty;
 		_interaction.DeferredGuideMoveCandidate = false;
 		_interaction.DeferredGuideCenterMoveCandidate = false;
+
+		// Отложенный щелчок по узлу кривой — такое же намерение, как
+		// соседние, и снимается вместе с ними. Без этого выход из режима
+		// узлов по Esc посреди протяжки сначала гасил выделение узлов,
+		// а потом отпускание кнопки возвращало один из них выбранным —
+		// уже в режиме, где узлов нет.
+		_interaction.PendingNodeToggleCurve = null;
+		_interaction.PendingNodeToggleIndex = -1;
+		_interaction.PendingNodeToggleAdditive = false;
+
 		_interaction.ActiveSnap = null;
 	}
 
@@ -2907,6 +2932,7 @@ public sealed partial class MainView : SKGLControl
 
 				if (MainForm.Mode == EditorMode.Curve)
 				{
+					ResetPendingInteractionState();
 					SetMode(EditorMode.Shape);
 					SetTool(ShapeToolKind.Select);
 					InvalidateCanvas();
@@ -3601,6 +3627,14 @@ public sealed partial class MainView
 		{
 			_interaction.PendingSelectionCycleStartShape = null;
 			_interaction.PendingSelectionCycle = false;
+		}
+
+		if (_interaction.PendingNodeToggleCurve != null &&
+			!CurrentPage.Shapes.Contains(_interaction.PendingNodeToggleCurve))
+		{
+			_interaction.PendingNodeToggleCurve = null;
+			_interaction.PendingNodeToggleIndex = -1;
+			_interaction.PendingNodeToggleAdditive = false;
 		}
 	}
 
