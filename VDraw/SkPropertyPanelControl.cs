@@ -444,7 +444,10 @@ public sealed class SkPropertyPanelControl : Control
 
 		var others = new List<Shape>();
 
-		foreach (var shape in OtherTargets<Shape>())
+		// Группа разворачивается до детей: оформление у неё своё, но
+		// рисуется оно детьми, и назначенное самой группе никуда
+		// не попадало.
+		foreach (var shape in ShapeFormatClipboard.ExpandForStyling(OtherTargets<Shape>()))
 		{
 			if (allows(shape))
 				others.Add(shape);

@@ -96,7 +96,7 @@ public static class ShapeFormatClipboard
 		if (!HasFormat)
 			return 0;
 
-		var targets = Expand(shapes).ToList();
+		var targets = ExpandForStyling(shapes).ToList();
 
 		if (targets.Count == 0)
 			return 0;
@@ -172,10 +172,18 @@ public static class ShapeFormatClipboard
 			to.MidY + (p.Y - from.MidY) * sy);
 
 	/// <summary>
-	/// Разворачивает выделение в список фигур, которым формат применим:
-	/// группы заменяются их детьми, запертые пропускаются.
+	/// Разворачивает выделение в список фигур, которым применимо оформление:
+	/// группы заменяются их детьми, запертые и направляющие пропускаются.
+	///
+	/// Открыто наружу: тем же разворотом пользуется палитра цвета линии
+	/// и заливки. У группы собственные обводка и заливка ни на что
+	/// не влияют — рисуются дети, каждый своими, — поэтому цвет,
+	/// назначенный группе, пропадал без следа: он ложился в поля,
+	/// которых никто не читает.
+	///
+	/// Рекурсивно: группа внутри группы разворачивается до листьев.
 	/// </summary>
-	private static IEnumerable<Shape> Expand(IEnumerable<Shape> shapes)
+	public static IEnumerable<Shape> ExpandForStyling(IEnumerable<Shape> shapes)
 	{
 		foreach (var shape in shapes)
 		{
@@ -184,7 +192,7 @@ public static class ShapeFormatClipboard
 
 			if (shape is GroupShape group)
 			{
-				foreach (var child in Expand(group.Children))
+				foreach (var child in ExpandForStyling(group.Children))
 					yield return child;
 
 				continue;

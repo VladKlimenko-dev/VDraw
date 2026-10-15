@@ -1914,22 +1914,32 @@ public partial class MainForm : Form
 		if (sel.Selected == null || sel.Selected.Count == 0)
 			return;
 
-		var action = ShapeStyleAction.Capture("Line color", sel.Selected);
+		// Группы разворачиваются до детей: своя обводка у группы ни на что
+		// не влияет, рисует себя каждый ребёнок сам.
+		var targets = ShapeFormatClipboard.ExpandForStyling(sel.Selected).ToList();
 
-		bool use_stroke = c.A != 0;
-		for (int i = 0; i < sel.Selected.Count; i++)
+		// Пустой список — не повод выходить: красить нечего, когда выделены
+		// одни запертые фигуры, но цвет для БУДУЩИХ фигур и вид кнопки
+		// палитра задаёт всё равно. Выход отсюда гасил бы и их.
+		if (targets.Count > 0)
 		{
-			if (!sel.Selected[i].Stroke.Enabled && use_stroke)
-				sel.Selected[i].Stroke.Enabled = true;
-			if (!use_stroke && sel.Selected[i].Stroke.Enabled)
-			{
-				sel.Selected[i].Stroke.Enabled = false;
-				continue;
-			}
-			sel.Selected[i].Stroke.Color = new SKColor(c.R, c.G, c.B, c.A);
-		}
+			var action = ShapeStyleAction.Capture("Line color", targets);
 
-		CommitStyleChange(action);
+			bool use_stroke = c.A != 0;
+			foreach (var shape in targets)
+			{
+				if (!shape.Stroke.Enabled && use_stroke)
+					shape.Stroke.Enabled = true;
+				if (!use_stroke && shape.Stroke.Enabled)
+				{
+					shape.Stroke.Enabled = false;
+					continue;
+				}
+				shape.Stroke.Color = new SKColor(c.R, c.G, c.B, c.A);
+			}
+
+			CommitStyleChange(action);
+		}
 
 		// Кнопка тулбара показывает цвет, которым рисуют дальше: палитра
 		// задаёт его наравне с диалогом, и расходиться им нельзя.
@@ -1964,23 +1974,32 @@ public partial class MainForm : Form
 		if (sel.Selected == null || sel.Selected.Count == 0)
 			return;
 
-		var action = ShapeStyleAction.Capture("Fill color", sel.Selected);
+		// Та же причина, что и у цвета линии: заливку рисует ребёнок,
+		// а не группа.
+		var targets = ShapeFormatClipboard.ExpandForStyling(sel.Selected).ToList();
 
-		bool use_fill = c.A != 0;
-		for (int i = 0; i < sel.Selected.Count; i++)
+		// Та же причина, что у цвета линии: даже когда красить нечего,
+		// цвет для будущих фигур и вид кнопки палитра задаёт.
+		if (targets.Count > 0)
 		{
-			if (!sel.Selected[i].Fill.Enabled && use_fill)
-				sel.Selected[i].Fill.Enabled = true;
-			if (!use_fill && sel.Selected[i].Fill.Enabled)
-			{
-				sel.Selected[i].Fill.Enabled = false;
-				continue;
-			}
-			sel.Selected[i].Fill.Kind = FillKind.Solid;
-			sel.Selected[i].Fill.SolidColor = new SKColor(c.R, c.G, c.B, c.A);
-		}
+			var action = ShapeStyleAction.Capture("Fill color", targets);
 
-		CommitStyleChange(action);
+			bool use_fill = c.A != 0;
+			foreach (var shape in targets)
+			{
+				if (!shape.Fill.Enabled && use_fill)
+					shape.Fill.Enabled = true;
+				if (!use_fill && shape.Fill.Enabled)
+				{
+					shape.Fill.Enabled = false;
+					continue;
+				}
+				shape.Fill.Kind = FillKind.Solid;
+				shape.Fill.SolidColor = new SKColor(c.R, c.G, c.B, c.A);
+			}
+
+			CommitStyleChange(action);
+		}
 
 		Settings.shape_default_fill_color = new SKColor(c.R, c.G, c.B, c.A);
 		s_fill_color_but.SetSKColor(Settings.shape_default_fill_color);
