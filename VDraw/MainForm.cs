@@ -1622,6 +1622,10 @@ public partial class MainForm : Form
 		_mainView.SetPage(doc_new.pages[0]);
 		_animPanel?.SetPage(CurrentPage, documentChanged: true);
 
+		// То же, что и при открытии: формат нового документа пользователь
+		// только что выбрал в диалоге, и панель обязана его показать.
+		InitPageData();
+
 		_pageTabs?.SetDocument(doc_new);
 
 		// История у нового документа своя — перепривязываем кнопки.
@@ -2502,6 +2506,12 @@ public partial class MainForm : Form
 		opened.ActivePage = CurrentPage;
 		_mainView.SetPage(CurrentPage);
 		_animPanel?.SetPage(CurrentPage, documentChanged: true);
+
+		// Панель листа заполняется из страницы — иначе формат, размер,
+		// единицы, ориентация, сетка и поля печати остаются от прежнего
+		// документа, и панель врёт о только что открытом. Переключение
+		// страницы это делало, открытие — нет.
+		InitPageData();
 
 		_pageTabs?.SetDocument(opened);
 
@@ -3798,43 +3808,63 @@ public partial class MainForm : Form
 	#endregion
 
 	#region Page tab buttons
+	/// <summary>
+	/// Смена формата листа с панели.
+	///
+	/// Единственная настройка листа, которая не метила документ как
+	/// изменённый и не попадала в историю: после смены формата «Создать»
+	/// и «Открыть» не спрашивали о сохранении, а Ctrl+Z откатывал
+	/// предыдущее действие. Теперь она устроена как соседние — размер,
+	/// единицы, ориентация.
+	/// </summary>
 	private void page_paper_size_combo_SelectedIndexChanged(object sender, EventArgs e)
 	{
-		if (CurrentPage == null)
-			return;
+		var undoStep = BeginPageSettingsChange("Paper format");
 
-		PaperFormat fmt = Settings.paper_formats[page_paper_size_combo.SelectedIndex];
-		CurrentPage.paper_format = fmt;
-
-		if (fmt.title == "Custom")
+		try
 		{
+			if (CurrentPage == null)
+				return;
+
+			PaperFormat fmt = Settings.paper_formats[page_paper_size_combo.SelectedIndex];
+			CurrentPage.paper_format = fmt;
+			CurrentPage.doc.need_save = true;
+
+			// «Произвольный» размеров не навязывает: их задают полями рядом.
+			if (fmt.title == "Custom")
+			{
+				_mainView.DocumentChanged();
+				return;
+			}
+
+			// Update size_uom according to format, orientation, and current uom
+			float wMm = fmt.width_mm;
+			float hMm = fmt.height_mm;
+
+			if (CurrentPage.Orientation == PageOrientation.Horizontal)
+				(wMm, hMm) = (hMm, wMm);
+
+			// Convert mm → current uom units
+			float uomFactor = CurrentPage.MmPerUom;
+			CurrentPage.size_uom = new SKSize(wMm / uomFactor, hMm / uomFactor);
+
+			// Reflect in UI
+			page_size_w_nud.ValueChanged -= page_size_w_nud_ValueChanged;
+			page_size_w_nud.Value = (decimal)CurrentPage.size_uom.Width;
+			page_size_w_nud.ValueChanged += page_size_w_nud_ValueChanged;
+			page_size_h_nud.ValueChanged -= page_size_h_nud_ValueChanged;
+			page_size_h_nud.Value = (decimal)CurrentPage.size_uom.Height;
+			page_size_h_nud.ValueChanged += page_size_h_nud_ValueChanged;
+
+			if (CurrentPage.LockRatio)
+				CurrentPage.locked_ratio = CurrentPage.size_uom.Width / CurrentPage.size_uom.Height;
+
 			_mainView.DocumentChanged();
-			return;
 		}
-
-		// Update size_uom according to format, orientation, and current uom
-		float wMm = fmt.width_mm;
-		float hMm = fmt.height_mm;
-
-		if (CurrentPage.Orientation == PageOrientation.Horizontal)
-			(wMm, hMm) = (hMm, wMm);
-
-		// Convert mm → current uom units
-		float uomFactor = CurrentPage.MmPerUom;
-		CurrentPage.size_uom = new SKSize(wMm / uomFactor, hMm / uomFactor);
-
-		// Reflect in UI
-		page_size_w_nud.ValueChanged -= page_size_w_nud_ValueChanged;
-		page_size_w_nud.Value = (decimal)CurrentPage.size_uom.Width;
-		page_size_w_nud.ValueChanged += page_size_w_nud_ValueChanged;
-		page_size_h_nud.ValueChanged -= page_size_h_nud_ValueChanged;
-		page_size_h_nud.Value = (decimal)CurrentPage.size_uom.Height;
-		page_size_h_nud.ValueChanged += page_size_h_nud_ValueChanged;
-
-		if (CurrentPage.LockRatio)
-			CurrentPage.locked_ratio = CurrentPage.size_uom.Width / CurrentPage.size_uom.Height;
-
-		_mainView.DocumentChanged();
+		finally
+		{
+			CommitPageSettingsChange(undoStep);
+		}
 	}
 
 	private void page_props_but_Click(object sender, EventArgs e)
