@@ -222,7 +222,7 @@ public partial class MainForm : Form
 		SetButtonChecked(format_but, false);
 		SetButtonChecked(page_grid_but, false);
 		SetButtonChecked(page_print_borders_but, false);
-		SetButtonChecked(s_cap_scissors_but, false);
+		SetButtonChecked(s_cap_scissors_but, Settings.cap_scissors);
 	}
 
 	/// <summary>

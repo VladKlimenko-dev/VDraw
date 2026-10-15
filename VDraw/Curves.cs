@@ -820,113 +820,328 @@ public partial class CurveShape : Shape
 		return CommitNodeHistory(history, undo);
 	}
 
+	/// <summary>
+	/// Меняет тип выделенных узлов.
+	///
+	/// Два прохода, а не один. Направления сторон читаются у соседей,
+	/// и сосед может оказаться в том же выделении: обработай мы узлы
+	/// подряд, второй читал бы уже переписанные ручки первого и строил
+	/// свои по ложному направлению. На выделении «все узлы» первая
+	/// же сторона ломаной от этого выгибалась.
+	/// </summary>
 	private void ApplySelectedNodeType(CurveNodeType type, float handleLength)
 	{
+		// Контуры разбираются один раз на всю правку: иначе каждый узел
+		// пересобирал бы их заново, и «выделить все узлы» обходилось бы
+		// в квадрат от их числа.
+		var ranges = GetContourRangesForAdorner();
+
+		var plans = new List<(int Index, NodeDirections Dirs)>();
+
 		for (int i = 0; i < Nodes.Count; i++)
 		{
-			var n = Nodes[i];
-			if (!n.Selected)
+			if (!Nodes[i].Selected)
 				continue;
 
-			switch (type)
+			plans.Add((i, GetNodeDirections(ranges, i)));
+		}
+
+		foreach (var (index, dirs) in plans)
+		{
+			if (type == CurveNodeType.Straight)
 			{
-				case CurveNodeType.Straight:
-					n.SetStraight();
-					break;
-
-				case CurveNodeType.Sharp:
-					n.SetSharp(handleLength);
-					break;
-
-				case CurveNodeType.Tangent:
-					SetNodeTangentWithGeometry(i); // вместо n.SetTangent(handleLength);
-					break;
+				Nodes[index].SetStraight();
+				continue;
 			}
+
+			SetNodeHandles(index, type, handleLength, dirs);
 		}
 	}
 
-	private void SetNodeTangentWithGeometry(int index, float figureHandleScale = 0.05f)
+	/// <summary>Направления сторон в узле и длины их хорд.</summary>
+	private readonly struct NodeDirections
+	{
+		public readonly bool Valid;
+		public readonly SKPoint UIn;
+		public readonly SKPoint UOut;
+		public readonly float LenIn;
+		public readonly float LenOut;
+
+		public NodeDirections(SKPoint uIn, SKPoint uOut, float lenIn, float lenOut)
+		{
+			Valid = true;
+			UIn = uIn;
+			UOut = uOut;
+			LenIn = lenIn;
+			LenOut = lenOut;
+		}
+	}
+
+	/// <summary>
+	/// Ставит ручки узла по направлениям соседних сегментов — тех, что
+	/// на чертеже уже нарисованы.
+	///
+	/// Прежний расчёт брал биссектрису двух хорд, разворачивал её
+	/// в перпендикуляр, а потом ещё раз на минус девяносто градусов,
+	/// и длину назначал от размера ВСЕЙ фигуры — пять сотых её габарита.
+	/// На крупной фигуре с короткими сторонами ручки улетали на несколько
+	/// длин сегмента в сторону, никак не связанную с линией, и кривая
+	/// от смены типа узла меняла вид до неузнаваемости.
+	///
+	/// Направления берутся не по положениям соседей, а по их ручкам,
+	/// если те есть: у изогнутого соседнего сегмента касательная в нашем
+	/// узле задаётся именно ручкой соседа, а хорда идёт стороной.
+	///
+	/// Длина — треть соседней хорды. Это не произвольная доля: кубика
+	/// с ручками в треть хорды и обеими опорными точками на прямой
+	/// совпадает с этой прямой в точности. Поэтому угловой узел, которому
+	/// ручки ставятся каждая по своей стороне, НЕ меняет вид ломаной
+	/// вовсе — а гладкий отклоняется ровно настолько, насколько нужно,
+	/// чтобы стать гладким.
+	/// </summary>
+	private void SetNodeHandles(int index, CurveNodeType type, float fallbackLength, in NodeDirections dirs)
 	{
 		if (index < 0 || index >= Nodes.Count)
 			return;
 
 		var node = Nodes[index];
 
-		CurveNode? prevNode = index > 0 ? Nodes[index - 1] : null;
-		CurveNode? nextNode = index < Nodes.Count - 1 ? Nodes[index + 1] : null;
+		bool hasPrev = node.HasPrevControl;
+		bool hasNext = node.HasNextControl;
 
-		if (prevNode == null || nextNode == null)
+		if (type == CurveNodeType.Sharp)
 		{
-			node.SetTangent();
+			// Обе ручки уже есть — трогать нечего.
+			//
+			// Угловой узел тем и отличается от гладкого, что ручки у него
+			// независимы; переход «гладкий → угловой» только снимает запрет
+			// на их расхождение. Пересчитай мы их по сторонам, привычная
+			// операция «разорвать гладкость здесь» всякий раз спрямляла бы
+			// кривую — то есть делала бы ровно обратное задуманному.
+			if (hasPrev && hasNext)
+			{
+				node.Type = CurveNodeType.Sharp;
+				return;
+			}
+
+			if (!dirs.Valid)
+			{
+				node.SetSharp(fallbackLength);
+				return;
+			}
+
+			// Недостающие ручки ставятся каждая по своей стороне.
+			// Треть хорды — не произвольная доля: кубика с опорными точками
+			// на прямой в треть её длины совпадает с этой прямой в точности,
+			// поэтому ломаная от превращения в угловые узлы не меняется.
+			if (!hasPrev)
+			{
+				node.ControlPrev = new SKPoint(
+					node.Position.X - dirs.UIn.X * dirs.LenIn / 3f,
+					node.Position.Y - dirs.UIn.Y * dirs.LenIn / 3f);
+			}
+
+			if (!hasNext)
+			{
+				node.ControlNext = new SKPoint(
+					node.Position.X + dirs.UOut.X * dirs.LenOut / 3f,
+					node.Position.Y + dirs.UOut.Y * dirs.LenOut / 3f);
+			}
+
+			node.Type = CurveNodeType.Sharp;
 			return;
 		}
 
-		var vIn = new SKPoint(
-			node.Position.X - prevNode.Position.X,
-			node.Position.Y - prevNode.Position.Y);
-
-		var vOut = new SKPoint(
-			nextNode.Position.X - node.Position.X,
-			nextNode.Position.Y - node.Position.Y);
-
-		float lenIn = MathF.Sqrt(vIn.X * vIn.X + vIn.Y * vIn.Y);
-		float lenOut = MathF.Sqrt(vOut.X * vOut.X + vOut.Y * vOut.Y);
-
-		if (lenIn < 0.0001f || lenOut < 0.0001f)
+		// Гладкий узел: обе ручки на одной прямой, иначе он не гладкий.
+		if (hasPrev && hasNext)
 		{
-			node.SetTangent();
+			// Ось берётся у самого узла, а не у соседей: его ручки и есть
+			// нынешние касательные, и ближе к прежней форме не подойти.
+			// Длины сохраняются — меняется только то, что обязано: ручки
+			// выпрямляются в одну линию.
+			var dIn = Normalize(new SKPoint(
+				node.Position.X - node.ControlPrev.X,
+				node.Position.Y - node.ControlPrev.Y));
+
+			var dOut = Normalize(new SKPoint(
+				node.ControlNext.X - node.Position.X,
+				node.ControlNext.Y - node.Position.Y));
+
+			var axis = Normalize(new SKPoint(dIn.X + dOut.X, dIn.Y + dOut.Y));
+
+			// Ручки смотрят навстречу — биссектриса вырождается.
+			if (Length(axis) < 0.0001f)
+				axis = Length(dOut) > 0.0001f ? dOut : dIn;
+
+			float lenPrev = Distance(node.Position, node.ControlPrev);
+			float lenNext = Distance(node.Position, node.ControlNext);
+
+			node.ControlPrev = new SKPoint(
+				node.Position.X - axis.X * lenPrev,
+				node.Position.Y - axis.Y * lenPrev);
+
+			node.ControlNext = new SKPoint(
+				node.Position.X + axis.X * lenNext,
+				node.Position.Y + axis.Y * lenNext);
+
+			node.Type = CurveNodeType.Tangent;
 			return;
 		}
 
-		var uIn = new SKPoint(vIn.X / lenIn, vIn.Y / lenIn);
-		var uOut = new SKPoint(vOut.X / lenOut, vOut.Y / lenOut);
-
-		var bisector = new SKPoint(
-			uIn.X + uOut.X,
-			uIn.Y + uOut.Y);
-
-		float lenBis = MathF.Sqrt(bisector.X * bisector.X + bisector.Y * bisector.Y);
-		if (lenBis < 0.0001f)
+		// Одна ручка есть — её направление и задаёт ось. Это умеет SetTangent.
+		if (hasPrev || hasNext)
 		{
-			bisector = uOut;
-			lenBis = 1f;
+			node.SetTangent(fallbackLength);
+			return;
 		}
 
-		var uBis = new SKPoint(bisector.X / lenBis, bisector.Y / lenBis);
-
-		// Перпендикуляр к биссектору (из него будем вращать на 90°)
-		var n = new SKPoint(-uBis.Y, uBis.X);
-
-		var bounds = GetLocalBounds();
-		float figSize = MathF.Max(bounds.Width, bounds.Height);
-		float handleLen = figSize * figureHandleScale;
-
-		// Базовые ручки по перпендикуляру
-		var basePrev = new SKPoint(
-			node.Position.X - n.X * handleLen,
-			node.Position.Y - n.Y * handleLen);
-
-		var baseNext = new SKPoint(
-			node.Position.X + n.X * handleLen,
-			node.Position.Y + n.Y * handleLen);
-
-		// Поворот на -90° относительно узла
-		SKPoint RotateMinus90(SKPoint p)
+		if (!dirs.Valid)
 		{
-			float dx = p.X - node.Position.X;
-			float dy = p.Y - node.Position.Y;
-
-			// Поворот на -90° вокруг узла:
-			// x' = node.X + dy
-			// y' = node.Y - dx
-			return new SKPoint(
-				node.Position.X + dy,
-				node.Position.Y - dx);
+			node.SetTangent(fallbackLength);
+			return;
 		}
 
-		node.ControlPrev = RotateMinus90(basePrev);
-		node.ControlNext = RotateMinus90(baseNext);
+		// Ручек нет вовсе: ось — биссектриса направлений движения через узел.
+		// При равных хордах это та же прямая, что через обоих соседей.
+		var bis = Normalize(new SKPoint(dirs.UIn.X + dirs.UOut.X, dirs.UIn.Y + dirs.UOut.Y));
+
+		if (Length(bis) < 0.0001f)
+			bis = dirs.UOut;
+
+		node.ControlPrev = new SKPoint(
+			node.Position.X - bis.X * dirs.LenIn / 3f,
+			node.Position.Y - bis.Y * dirs.LenIn / 3f);
+
+		node.ControlNext = new SKPoint(
+			node.Position.X + bis.X * dirs.LenOut / 3f,
+			node.Position.Y + bis.Y * dirs.LenOut / 3f);
+
 		node.Type = CurveNodeType.Tangent;
+	}
+
+
+	/// <summary>
+	/// Направления сторон в узле и длины их хорд.
+	///
+	/// Соседи ищутся по контуру, а не по списку: у замкнутого контура
+	/// за последним узлом идёт первый, а у соседних контуров общих
+	/// сегментов нет вовсе.
+	///
+	/// У конца разомкнутого контура сторона всего одна — она и задаёт
+	/// обе ручки. Прежде такой узел считался безнадёжным, и ручки ему
+	/// ставились горизонтально, в восьми единицах от него: направление
+	/// брали из воздуха, хотя единственная сторона была на виду.
+	/// </summary>
+	private NodeDirections GetNodeDirections(
+		IReadOnlyList<(int Start, int End, bool Closed)> ranges,
+		int index)
+	{
+		if (index < 0 || index >= Nodes.Count)
+			return default;
+
+		FindContourNeighbours(ranges, index, out int prevIndex, out int nextIndex);
+
+		var node = Nodes[index];
+
+		// Переменные объявлены заранее, а не в самом вызове: при коротком
+		// замыкании && второй операнд не выполняется, и компилятор считает
+		// их неприсвоенными — объявление по месту тут не проходит сборку.
+		SKPoint uIn = default;
+		SKPoint uOut = default;
+		float lenIn = 0f;
+		float lenOut = 0f;
+
+		bool hasIn = prevIndex >= 0
+			&& TrySideDirection(node, Nodes[prevIndex], incoming: true, out uIn, out lenIn);
+
+		bool hasOut = nextIndex >= 0
+			&& TrySideDirection(node, Nodes[nextIndex], incoming: false, out uOut, out lenOut);
+
+		if (!hasIn && !hasOut)
+			return default;
+
+		if (!hasIn)
+		{
+			uIn = uOut;
+			lenIn = lenOut;
+		}
+		else if (!hasOut)
+		{
+			uOut = uIn;
+			lenOut = lenIn;
+		}
+
+		return new NodeDirections(uIn, uOut, lenIn, lenOut);
+	}
+
+	/// <summary>
+	/// Направление одной стороны и длина её хорды.
+	///
+	/// Направление берётся по ручке соседа, если она есть: у изогнутой
+	/// стороны касательная в нашем узле задаётся именно ею, а хорда идёт
+	/// стороной. Длина — наоборот, по самой хорде: ручка соседа говорит,
+	/// куда сторона смотрит, а насколько она длинна — говорят узлы.
+	/// </summary>
+	private static bool TrySideDirection(
+		CurveNode node,
+		CurveNode other,
+		bool incoming,
+		out SKPoint unit,
+		out float length)
+	{
+		unit = SKPoint.Empty;
+		length = 0f;
+
+		var handlePoint = incoming
+			? (other.HasNextControl ? other.ControlNext : other.Position)
+			: (other.HasPrevControl ? other.ControlPrev : other.Position);
+
+		var v = incoming
+			? new SKPoint(node.Position.X - handlePoint.X, node.Position.Y - handlePoint.Y)
+			: new SKPoint(handlePoint.X - node.Position.X, handlePoint.Y - node.Position.Y);
+
+		if (Length(v) < 0.0001f)
+			return false;
+
+		unit = Normalize(v);
+		length = Distance(node.Position, other.Position);
+
+		return length > 0.0001f;
+	}
+
+	/// <summary>
+	/// Соседи узла ПО КОНТУРУ. Отсутствующий сосед — минус единица:
+	/// так бывает на концах разомкнутого контура.
+	/// </summary>
+	private static void FindContourNeighbours(
+		IReadOnlyList<(int Start, int End, bool Closed)> ranges,
+		int index,
+		out int prevIndex,
+		out int nextIndex)
+	{
+		prevIndex = -1;
+		nextIndex = -1;
+
+		foreach (var range in ranges)
+		{
+			if (index < range.Start || index > range.End)
+				continue;
+
+			if (range.End - range.Start + 1 < 2)
+				return;
+
+			if (index > range.Start)
+				prevIndex = index - 1;
+			else if (range.Closed)
+				prevIndex = range.End;
+
+			if (index < range.End)
+				nextIndex = index + 1;
+			else if (range.Closed)
+				nextIndex = range.Start;
+
+			return;
+		}
 	}
 
 	public void MoveNode(int index, SKPoint newLocalPoint)
@@ -956,7 +1171,13 @@ public partial class CurveShape : Shape
 		}
 	}
 
-	public void MoveControlPoint(int nodeIndex, bool isPrev, SKPoint newLocalPoint)
+	/// <param name="mirror">
+	/// Зеркалить ли противоположную ручку. У гладкого узла она и так
+	/// держится на одной прямой с ведомой, но свою длину сохраняет;
+	/// с mirror длина приравнивается — ручка уходит в другую сторону
+	/// ровно на столько же, на сколько ведомая пришла.
+	/// </param>
+	public void MoveControlPoint(int nodeIndex, bool isPrev, SKPoint newLocalPoint, bool mirror = false)
 	{
 		if (nodeIndex < 0 || nodeIndex >= Nodes.Count)
 			return;
@@ -986,9 +1207,9 @@ public partial class CurveShape : Shape
 
 			if (isPrev)
 			{
-				float otherLen = node.HasNextControl
-					? Distance(node.Position, node.ControlNext)
-					: len;
+				float otherLen = mirror || !node.HasNextControl
+					? len
+					: Distance(node.Position, node.ControlNext);
 
 				node.ControlNext = new SKPoint(
 					node.Position.X - ux * otherLen,
@@ -996,9 +1217,9 @@ public partial class CurveShape : Shape
 			}
 			else
 			{
-				float otherLen = node.HasPrevControl
-					? Distance(node.Position, node.ControlPrev)
-					: len;
+				float otherLen = mirror || !node.HasPrevControl
+					? len
+					: Distance(node.Position, node.ControlPrev);
 
 				node.ControlPrev = new SKPoint(
 					node.Position.X - ux * otherLen,
@@ -1027,6 +1248,9 @@ public partial class CurveShape : Shape
 
 		ClearNodeSelection();
 
+		var a = contour.Nodes[li];
+		var b = isClosingSegment ? contour.Nodes[0] : contour.Nodes[li + 1];
+
 		var node = new CurveNode
 		{
 			Position = localPoint,
@@ -1035,12 +1259,119 @@ public partial class CurveShape : Shape
 			Focused = true
 		};
 
+		// Изогнутый сегмент делится, а не заменяется.
+		//
+		// Прежде новый узел просто вставлялся прямым, без ручек, и обе
+		// половины становились прямыми: кривая на этом месте спрямлялась,
+		// теряя форму. Между тем кубику можно разрезать точно — алгоритмом
+		// де Кастельжо: он даёт две кубики, которые вместе совпадают
+		// с исходной до последнего разряда. Форма не меняется вовсе,
+		// а узел встаёт ровно на линию, куда бы ни пришёлся щелчок.
+		SplitSegmentAt(a, b, node, localPoint);
+
 		// Для замыкающего сегмента новый узел становится последним в контуре,
 		// для обычного — встаёт сразу после узла li.
 		contour.Nodes.Insert(li + 1, node);
 
 		RebuildFromContours(contours);
 		return true;
+	}
+
+	/// <summary>
+	/// Делит сегмент a→b в точке, ближайшей к localPoint, и раздаёт ручки
+	/// так, чтобы форма осталась прежней.
+	///
+	/// Прямой сегмент делить нечем: узел просто садится на щелчок, обе
+	/// половины остаются прямыми, и вид не меняется.
+	/// </summary>
+	private static void SplitSegmentAt(CurveNode a, CurveNode b, CurveNode inserted, SKPoint localPoint)
+	{
+		float t = FindNearestParameter(a, b, localPoint);
+
+		// Узел садится НА линию, а не туда, куда пришёлся щелчок.
+		//
+		// Щелчок засчитывается в десяти экранных точках от сегмента,
+		// и посади мы узел в саму точку щелчка, прямая сторона получала бы
+		// излом до десяти точек шириной. Проекция на линию — то же место,
+		// по которому щелчок и был засчитан.
+		inserted.Position = CurveAdorner.EvaluateSegmentAt(a, b, t);
+
+		bool curved = a.HasNextControl || b.HasPrevControl;
+
+		if (!curved)
+			return;
+
+		var p0 = a.Position;
+		var c1 = a.HasNextControl ? a.ControlNext : a.Position;
+		var c2 = b.HasPrevControl ? b.ControlPrev : b.Position;
+		var p3 = b.Position;
+
+		// Де Кастельжо: три пары, потом две, потом точка на кривой.
+		var q0 = Lerp(p0, c1, t);
+		var q1 = Lerp(c1, c2, t);
+		var q2 = Lerp(c2, p3, t);
+
+		var r0 = Lerp(q0, q1, t);
+		var r1 = Lerp(q1, q2, t);
+
+		var s = Lerp(r0, r1, t);
+
+		inserted.Position = s;
+
+		// r0, s, r1 лежат на одной прямой по построению — узел выходит
+		// гладким, и назвать его иначе значило бы соврать о его природе.
+		inserted.Type = CurveNodeType.Tangent;
+		inserted.ControlPrev = r0;
+		inserted.ControlNext = r1;
+
+		// У соседей правится только та ручка, что смотрит в наш сегмент.
+		// И только если она у них была: иначе q0 совпадает с p0, а q2
+		// с p3, и записывать нулевую ручку незачем — тем более что
+		// прямому узлу она и не хранится.
+		if (a.HasNextControl)
+			a.ControlNext = q0;
+
+		if (b.HasPrevControl)
+			b.ControlPrev = q2;
+	}
+
+	private static SKPoint Lerp(SKPoint from, SKPoint to, float t)
+		=> new(from.X + (to.X - from.X) * t, from.Y + (to.Y - from.Y) * t);
+
+	/// <summary>
+	/// Параметр сегмента, в котором он ближе всего к заданной точке.
+	///
+	/// Шаг тот же, что у поиска попадания в сегмент, и считает ровно ту же
+	/// точку: разойдись они, узел садился бы не туда, куда пользователь
+	/// целился при щелчке.
+	///
+	/// Концы исключаются: узел в начале или в конце сегмента совпал бы
+	/// с существующим, и сторона нулевой длины осталась бы в контуре.
+	/// </summary>
+	private static float FindNearestParameter(CurveNode a, CurveNode b, SKPoint target)
+	{
+		const int steps = 64;
+
+		float best = 0.5f;
+		float bestDist = float.MaxValue;
+
+		for (int i = 0; i <= steps; i++)
+		{
+			float t = i / (float)steps;
+			var p = CurveAdorner.EvaluateSegmentAt(a, b, t);
+
+			float dx = p.X - target.X;
+			float dy = p.Y - target.Y;
+			float d = dx * dx + dy * dy;
+
+			if (d < bestDist)
+			{
+				bestDist = d;
+				best = t;
+			}
+		}
+
+		return Math.Clamp(best, 0.001f, 0.999f);
 	}
 
 	private static void AppendSegment(SKPathBuilder builder, CurveNode a, CurveNode b)
@@ -2708,7 +3039,7 @@ public sealed class MoveCurveControlPointOperation : DragOperation
 				target = new SKPoint(pagePoint.X + snap.Correction.X, pagePoint.Y + snap.Correction.Y);
 		}
 
-		shape.MoveControlPoint(nodeIndex, isPrev, shape.WorldToLocal(target));
+		shape.MoveControlPoint(nodeIndex, isPrev, shape.WorldToLocal(target), ctx.ShiftPressed);
 
 		if (view.CurrentPage != null)
 			view.CurrentPage.doc.need_save = true;
