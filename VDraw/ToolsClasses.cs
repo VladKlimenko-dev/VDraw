@@ -3633,7 +3633,9 @@ public sealed class MoveShapePointOperation : DragOperation
 			return;
 		}
 
-		if (!ctx.CtrlPressed && ObjectSnapEngine.AnySnappingEnabled)
+		// Alt, а не Ctrl: отключение прилипания на время протяжки повсюду
+		// на Alt. Ctrl в этой операции не участвует вовсе.
+		if (!ctx.AltPressed && ObjectSnapEngine.AnySnappingEnabled)
 		{
 			var snap = ObjectSnapEngine.SnapMovingPoint(
 				view,
@@ -3921,7 +3923,7 @@ public sealed class MoveShapePointOperation : DragOperation
 	///
 	/// Settings.snap_objects здесь сознательно не проверяется, как и у связей
 	/// во flowchart: привязка конца размера нужна и тогда, когда прилипание
-	/// выключено. Ctrl временно отключает и её.
+	/// выключено. Alt временно отключает и её.
 	/// </summary>
 	private bool TryAnchorMeasurement(
 		MainView view,
@@ -3935,7 +3937,11 @@ public sealed class MoveShapePointOperation : DragOperation
 		bool first = _pointIndex == 0;
 		var anchor = first ? shape.FirstAnchor : shape.LastAnchor;
 
-		if (ctx.CtrlPressed || !anchor.Enabled)
+		// Alt, а не Ctrl. Протяжка конца размера проходит через эту ветку
+		// И через обычное прилипание ниже, и пока они слушали разные
+		// клавиши, Alt гасил одну половину, Ctrl — другую, а отпустить
+		// точку целиком не удавалось ни тем, ни другим.
+		if (ctx.AltPressed || !anchor.Enabled)
 			return false;
 
 		// includeCenter: у размера центр фигуры — полноценная точка измерения.

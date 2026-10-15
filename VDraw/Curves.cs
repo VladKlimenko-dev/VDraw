@@ -2697,7 +2697,10 @@ public sealed class MoveCurveControlPointOperation : DragOperation
 		ctx.ActiveSnap = null;
 
 
-		if (!ctx.CtrlPressed && ObjectSnapEngine.AnySnappingEnabled)
+		// Временно без прилипания — по Alt, как и везде. Прежде здесь стоял
+		// Ctrl: нажатие Alt рычаг не отпускало, а Ctrl отпускал — ровно
+		// наоборот ожидаемому. Ctrl в этой операции больше не участвует.
+		if (!ctx.AltPressed && ObjectSnapEngine.AnySnappingEnabled)
 		{
 			var snap = ObjectSnapEngine.SnapMovingPoint(view, new[] { shape }, pagePoint, Settings.snap_dist);
 			ctx.ActiveSnap = snap;

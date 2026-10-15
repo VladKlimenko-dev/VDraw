@@ -334,11 +334,40 @@ public static class ShapeSnapGeometry
 				yield break;
 
 			case CurveShape curve:
-				foreach (var seg in GetPolylineSegments(
-							 curve.Nodes.Select(n => n.Position).ToList(),
-							 curve.LocalToWorld))
+				// Только ПРЯМЫЕ отрезки и только внутри контура.
+				//
+				// Прежде список узлов проходился подряд, и на каждую пару
+				// соседей выдавалась прямая через их положения. Для изогнутого
+				// сегмента это хорда: кривая идёт стороной, а прилипание
+				// держит направление, которого на чертеже нет. Для пары узлов
+				// из РАЗНЫХ контуров отрезка нет вовсе, а прямая всё равно
+				// выдавалась — через всю фигуру.
+				//
+				// Прямой сегмент — тот, у которого на концах нет ручек.
+				foreach (var range in curve.GetContourRangesForAdorner())
 				{
-					yield return new SnapLineCandidate(curve, seg.A, seg.B);
+					for (int i = range.Start; i < range.End; i++)
+					{
+						if (!IsStraightSegment(curve.Nodes[i], curve.Nodes[i + 1]))
+							continue;
+
+						yield return new SnapLineCandidate(
+							curve,
+							curve.LocalToWorld(curve.Nodes[i].Position),
+							curve.LocalToWorld(curve.Nodes[i + 1].Position));
+					}
+
+					// Замыкающий отрезок: у замкнутого контура он такая же
+					// сторона фигуры, как все прочие.
+					if (range.Closed
+						&& range.End > range.Start
+						&& IsStraightSegment(curve.Nodes[range.End], curve.Nodes[range.Start]))
+					{
+						yield return new SnapLineCandidate(
+							curve,
+							curve.LocalToWorld(curve.Nodes[range.End].Position),
+							curve.LocalToWorld(curve.Nodes[range.Start].Position));
+					}
 				}
 				yield break;
 		}
@@ -355,6 +384,24 @@ public static class ShapeSnapGeometry
 	public static IEnumerable<SKPoint> GetBoundsPoints(SKRect r) => GetRectPoints(r);
 
 	/// <summary>
+	/// Прямой ли сегмент между двумя узлами.
+	///
+	/// Признак один: на концах сегмента нет ручек. Тип узлов не
+	/// спрашивается, хотя при построении пути он и участвует — там
+	/// без ручек строится вырожденная кубика, у которой обе опорные
+	/// точки сидят на концах. Рисуется она прямой линией, и считать
+	/// её изогнутой значило бы потерять направляющую у ровной стороны:
+	/// у узла, сведённого из двух, тип остаётся Tangent, а ручек нет.
+	///
+	/// HasNextControl и HasPrevControl сами требуют непрямого типа,
+	/// поэтому отдельная проверка типа ничего бы не добавила.
+	/// </summary>
+	private static bool IsStraightSegment(CurveNode a, CurveNode b)
+	{
+		return !a.HasNextControl && !b.HasPrevControl;
+	}
+
+	/// <summary>
 	/// Середина сегмента кривой — точка НА кривой, при t = 0.5.
 	///
 	/// Правило «прямой или кубика» то же, что при построении пути:
@@ -365,13 +412,7 @@ public static class ShapeSnapGeometry
 	/// </summary>
 	private static SKPoint SegmentMidpoint(CurveNode a, CurveNode b)
 	{
-		bool useCubic =
-			a.HasNextControl ||
-			b.HasPrevControl ||
-			a.Type != CurveNodeType.Straight ||
-			b.Type != CurveNodeType.Straight;
-
-		if (!useCubic)
+		if (IsStraightSegment(a, b))
 			return Mid(a.Position, b.Position);
 
 		var c1 = a.HasNextControl ? a.ControlNext : a.Position;
@@ -426,15 +467,6 @@ public static class ShapeSnapGeometry
 		yield return (p2, p3);
 		yield return (p3, p4);
 		yield return (p4, p1);
-	}
-
-	private static IEnumerable<(SKPoint A, SKPoint B)> GetPolylineSegments(IReadOnlyList<SKPoint> pts, Func<SKPoint, SKPoint> map)
-	{
-		if (pts == null || pts.Count < 2)
-			yield break;
-
-		for (int i = 0; i < pts.Count - 1; i++)
-			yield return (map(pts[i]), map(pts[i + 1]));
 	}
 
 	private static IEnumerable<(SKPoint A, SKPoint B)> GetPolygonSegments(IReadOnlyList<SKPoint> pts, Func<SKPoint, SKPoint> map, bool closed)
@@ -549,9 +581,12 @@ public static class ObjectSnapEngine
 				scenePoints.AddRange(ShapeSnapGeometry.GetSnapPoints(shape));
 				sceneLines.AddRange(ShapeSnapGeometry.GetSnapLines(shape));
 			}
-
-			AddSelfPoints(selfShape, ignoreSelf, selfLines, scenePoints, sceneLines);
 		}
+
+		// Правимая фигура разбирается отдельно от чужих и по двум признакам
+		// сразу: её узлы — обычное прилипание к объектам, направления её же
+		// отрезков — динамические направляющие.
+		AddSelfPoints(selfShape, ignoreSelf, selfLines, scenePoints, sceneLines);
 
 		// Пересечения линий — такие же точки прилипания, как узлы фигур.
 		//
@@ -1746,26 +1781,41 @@ public static class ObjectSnapEngine
 
 		const float eps = 1e-4f;
 
-		foreach (var candidate in ShapeSnapGeometry.GetSnapPoints(selfShape))
+		// Собственные узлы фигуры — обычное прилипание к объектам.
+		if (Settings.snap_objects)
 		{
-			bool skip = false;
-
-			if (ignore != null)
+			foreach (var candidate in ShapeSnapGeometry.GetSnapPoints(selfShape))
 			{
-				foreach (var p in ignore)
+				bool skip = false;
+
+				if (ignore != null)
 				{
-					if (MathF.Abs(p.X - candidate.WorldPoint.X) < eps
-						&& MathF.Abs(p.Y - candidate.WorldPoint.Y) < eps)
+					foreach (var p in ignore)
 					{
-						skip = true;
-						break;
+						if (MathF.Abs(p.X - candidate.WorldPoint.X) < eps
+							&& MathF.Abs(p.Y - candidate.WorldPoint.Y) < eps)
+						{
+							skip = true;
+							break;
+						}
 					}
 				}
-			}
 
-			if (!skip)
-				points.Add(candidate);
+				if (!skip)
+					points.Add(candidate);
+			}
 		}
+
+		// Направления собственных отрезков — это динамические направляющие,
+		// и висят они на своей галочке.
+		//
+		// Прежде весь разбор своей фигуры стоял под признаком прилипания
+		// к объектам, и выключить направляющие по своей же кривой было
+		// нечем: узел продолжал держать направление соседней стороны
+		// при погашенной галочке и отпускал только вместе со всем
+		// прилипанием разом.
+		if (!Settings.dynamic_guidelines)
+			return;
 
 		// Отрезки берутся из снимка, если он передан.
 		//
