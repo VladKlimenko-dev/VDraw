@@ -163,6 +163,13 @@ public sealed class AvPropertyPanel : UserControl
 
 	#region Создание, подключение и раскладка
 
+	/// <summary>
+	/// Оформление берётся от обычного UserControl: иначе Avalonia искала бы
+	/// шаблон по имени нашего класса, не нашла бы его и не показала бы
+	/// содержимое панели вовсе.
+	/// </summary>
+	protected override Type StyleKeyOverride => typeof(UserControl);
+
 	public AvPropertyPanel()
 	{
 		Background = AvTheme.PanelBack;
@@ -583,7 +590,16 @@ public sealed class AvPropertyPanel : UserControl
 
 		bool first = true;
 
-		foreach (var shape in Targets)
+		// Запас на случай, когда панель построена, а список выделения пуст.
+		// Такое расхождение возможно: панель строится по sel.Primary,
+		// а значения читает по sel.Selected, и обновляются они не одним
+		// присваиванием. Без запасного пути все поля оказывались пустыми
+		// при явно выделенной фигуре.
+		var targets = Targets.Count > 0
+			? Targets
+			: (_boundShape != null ? new[] { _boundShape } : Array.Empty<Shape>());
+
+		foreach (var shape in targets)
 		{
 			if (shape is not T typed)
 				continue;

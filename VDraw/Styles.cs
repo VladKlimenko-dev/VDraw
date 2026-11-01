@@ -585,12 +585,22 @@ public sealed class FillStyle
 			Color = SolidColor
 		};
 
+		// Выключенная заливка и род «нет заливки» дают ПРОЗРАЧНУЮ кисть,
+		// а не кисть цвета SolidColor. Прежде метод возвращал непрозрачный
+		// цвет, и переключение рода на None не меняло фигуру совсем:
+		// рисовальщик проверяет только Enabled, а дальше закрашивал
+		// фигуру тем же цветом, что и при сплошной заливке.
 		if (!Enabled)
+		{
+			p.Color = SKColors.Transparent;
+
 			return p;
+		}
 
 		switch (Kind)
 		{
 			case FillKind.None:
+				p.Color = SKColors.Transparent;
 				break;
 
 			case FillKind.Solid:

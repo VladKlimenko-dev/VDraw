@@ -76,8 +76,18 @@ public static class SkUiTheme
 		ButtonPressed = new SKColor(220, 235, 250)
 	};
 
-	public static SkThemeKind CurrentKind { get; private set; } = SkThemeKind.Dark;
-	public static SkUiPalette Current { get; private set; } = Dark;
+	/// <summary>
+	/// Светлая по умолчанию.
+	///
+	/// Прежде по умолчанию стояла тёмная, а MainForm в конструкторе
+	/// насильно ставила светлую — и тем затирала тему, прочитанную
+	/// из настроек перед созданием окна. Выбор пользователя не доживал
+	/// до первого кадра. Теперь значение по умолчанию совпадает с тем,
+	/// что навязывалось, а настройка его перекрывает.
+	/// </summary>
+	public static SkThemeKind CurrentKind { get; private set; } = SkThemeKind.Light;
+
+	public static SkUiPalette Current { get; private set; } = Light;
 
 	public static event Action? ThemeChanged;
 

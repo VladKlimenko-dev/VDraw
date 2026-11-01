@@ -624,6 +624,15 @@ public sealed class AvLabel : TextBlock
 /// </summary>
 public class AvButton : Button
 {
+	/// <summary>
+	/// Оформление берётся от обычной кнопки.
+	///
+	/// Без этого Avalonia ищет оформление по РЕАЛЬНОМУ типу контрола,
+	/// то есть по нашему наследнику, не находит его в теме Fluent
+	/// и оставляет контрол без шаблона — на экране не появляется ничего.
+	/// </summary>
+	protected override Type StyleKeyOverride => typeof(Button);
+
 	private bool _checked;
 
 	public new Action? Click { get; set; }
@@ -721,41 +730,49 @@ public class AvButton : Button
 	}
 }
 
-/// <summary>Галочка — замена SkCheckBox.</summary>
-public sealed class AvCheckBox : CheckBox
+/// <summary>
+/// Галочка — замена SkCheckBox.
+///
+/// Рисуется целиком сама, без шаблона темы. Так сделано после того, как
+/// штатный CheckBox внутри хоста WinForms не отображался вовсе: квадрат,
+/// птичка и рамка у него берутся из словарей темы, и когда те не
+/// разрешаются, рисовать оказывается нечем. Здесь цвета берутся прямо
+/// из палитры VDraw — ровно как у кнопок и числовых полей панели,
+/// которые по той же причине заданы явно и видны всегда.
+///
+/// Заодно это снимает зависимость от символьного шрифта: птичка — две
+/// линии, а не глиф.
+/// </summary>
+public sealed class AvCheckBox : Control
 {
-	public string Text
-	{
-		get => Content as string ?? string.Empty;
-		set => Content = value;
-	}
+	private const double BoxSize = 16;
+	private const double TextGap = 6;
+
+	private bool _checked;
+	private bool _hover;
+
+	/// <summary>Надпись справа от квадрата. Пустая — только квадрат.</summary>
+	public string Text { get; set; } = string.Empty;
 
 	/// <summary>
-	/// Сквозное свойство к IsChecked. Нужно, чтобы перенесённый код
-	/// (Checked = shape.Visible) не пришлось править.
+	/// Состояние галочки.
+	///
+	/// Присваивание НЕ поднимает CheckedChanged: панель задаёт галочки
+	/// при сборке, и событие оттуда писало бы в модель и в историю
+	/// при каждой смене выделения.
 	/// </summary>
 	public bool Checked
 	{
-		get => IsChecked == true;
+		get => _checked;
 		set
 		{
-			// Программная установка не поднимает CheckedChanged: панель
-			// задаёт галочки при сборке, и событие оттуда записывало бы
-			// в модель и в историю при каждой смене выделения.
-			_suppress = true;
+			if (_checked == value)
+				return;
 
-			try
-			{
-				IsChecked = value;
-			}
-			finally
-			{
-				_suppress = false;
-			}
+			_checked = value;
+			InvalidateVisual();
 		}
 	}
-
-	private bool _suppress;
 
 	public event Action<bool>? CheckedChanged;
 
@@ -764,18 +781,115 @@ public sealed class AvCheckBox : CheckBox
 
 	public AvCheckBox()
 	{
-		FontSize = AvTheme.FontSize;
-		Foreground = AvTheme.Text;
+		Height = AvTheme.InputHeight;
 		MinHeight = AvTheme.InputHeight;
-		VerticalAlignment = VerticalAlignment.Center;
+		MinWidth = BoxSize;
+		Focusable = true;
+		Cursor = new Cursor(StandardCursorType.Hand);
 	}
 
-	protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+	protected override Size MeasureOverride(Size availableSize)
 	{
-		base.OnPropertyChanged(change);
+		double width = BoxSize;
 
-		if (change.Property == IsCheckedProperty && !_suppress)
-			CheckedChanged?.Invoke(IsChecked == true);
+		if (!string.IsNullOrEmpty(Text))
+			width += TextGap + BuildText().Width;
+
+		return new Size(width, AvTheme.InputHeight);
+	}
+
+	private FormattedText BuildText() => new(
+		Text,
+		CultureInfo.CurrentCulture,
+		FlowDirection.LeftToRight,
+		Typeface.Default,
+		AvTheme.FontSize,
+		IsEnabled ? AvTheme.Text : AvTheme.TextMuted);
+
+	public override void Render(DrawingContext context)
+	{
+		double top = (Bounds.Height - BoxSize) / 2;
+		var box = new Rect(0.5, top + 0.5, BoxSize - 1, BoxSize - 1);
+
+		var fill = _checked
+			? AvTheme.Accent
+			: (_hover ? AvTheme.Surface2 : AvTheme.Surface);
+
+		var border = _checked
+			? AvTheme.Accent
+			: (_hover ? AvTheme.Accent : AvTheme.BorderLine);
+
+		if (!IsEnabled)
+		{
+			fill = AvTheme.Surface2;
+			border = AvTheme.BorderLine;
+		}
+
+		context.DrawRectangle(fill, new Pen(border, 1), new RoundedRect(box, 3, 3));
+
+		if (_checked)
+		{
+			// Птичка двумя отрезками: короткий вниз-вправо и длинный вверх.
+			var tick = new Pen(Brushes.White, 2)
+			{
+				LineCap = PenLineCap.Round,
+				LineJoin = PenLineJoin.Round
+			};
+
+			double x = box.X;
+			double y = box.Y;
+			double k = box.Width;
+
+			context.DrawLine(tick,
+				new Point(x + k * 0.22, y + k * 0.52),
+				new Point(x + k * 0.43, y + k * 0.74));
+
+			context.DrawLine(tick,
+				new Point(x + k * 0.43, y + k * 0.74),
+				new Point(x + k * 0.78, y + k * 0.28));
+		}
+
+		if (string.IsNullOrEmpty(Text))
+			return;
+
+		var text = BuildText();
+
+		context.DrawText(text, new Point(
+			BoxSize + TextGap,
+			(Bounds.Height - text.Height) / 2));
+	}
+
+	protected override void OnPointerPressed(PointerPressedEventArgs e)
+	{
+		base.OnPointerPressed(e);
+
+		if (!IsEnabled)
+			return;
+
+		Focus();
+
+		_checked = !_checked;
+
+		InvalidateVisual();
+		CheckedChanged?.Invoke(_checked);
+
+		e.Handled = true;
+	}
+
+	protected override void OnPointerEntered(PointerEventArgs e)
+	{
+		base.OnPointerEntered(e);
+
+		_hover = true;
+		InvalidateVisual();
+	}
+
+	protected override void OnPointerExited(PointerEventArgs e)
+	{
+		base.OnPointerExited(e);
+
+		_hover = false;
+		InvalidateVisual();
 	}
 }
 
@@ -789,6 +903,15 @@ public sealed class AvCheckBox : CheckBox
 /// </summary>
 public class AvTextBox : TextBox
 {
+	/// <summary>
+	/// Оформление берётся от обычного поля ввода.
+	///
+	/// Без этого Avalonia ищет оформление по РЕАЛЬНОМУ типу контрола,
+	/// то есть по нашему наследнику, не находит его в теме Fluent
+	/// и оставляет контрол без шаблона — на экране не появляется ничего.
+	/// </summary>
+	protected override Type StyleKeyOverride => typeof(TextBox);
+
 	private string _committed = string.Empty;
 
 	public new Action<string>? TextChanged { get; set; }
@@ -844,11 +967,14 @@ public class AvTextBox : TextBox
 		CornerRadius = new CornerRadius(AvTheme.RadiusSmall);
 		VerticalContentAlignment = VerticalAlignment.Center;
 
-		// Цвет текста задаётся напрямую, а не берётся у темы: так набранное
-		// число видно, даже если словари темы по какой-то причине
-		// не разрешились. Фон и рамку оставляем теме — у неё есть состояния
-		// наведения и фокуса, воспроизводить их вручную не нужно.
+		// Цвета задаются напрямую, а не берутся у темы. Панель живёт внутри
+		// хоста WinForms, и полагаться на то, что словари темы доберутся
+		// сюда, уже приходилось дважды; заданное явно видно всегда.
 		Foreground = AvTheme.Text;
+		Background = AvTheme.Surface;
+		BorderBrush = AvTheme.BorderLine;
+		BorderThickness = new Thickness(1);
+		CaretBrush = AvTheme.Text;
 
 		// Подписка, а не переопределение OnGotFocus/OnLostFocus: у этих
 		// методов между версиями Avalonia менялся тип аргумента, а события
@@ -1246,6 +1372,15 @@ public sealed class AvDropDownItem
 /// </summary>
 public sealed class AvDropDownBox : ComboBox
 {
+	/// <summary>
+	/// Оформление берётся от обычного выпадающего списка.
+	///
+	/// Без этого Avalonia ищет оформление по РЕАЛЬНОМУ типу контрола,
+	/// то есть по нашему наследнику, не находит его в теме Fluent
+	/// и оставляет контрол без шаблона — на экране не появляется ничего.
+	/// </summary>
+	protected override Type StyleKeyOverride => typeof(ComboBox);
+
 	private readonly List<AvDropDownItem> _items = new();
 	private bool _settingItems;
 
@@ -1288,6 +1423,9 @@ public sealed class AvDropDownBox : ComboBox
 		MaxDropDownHeight = 260;
 		HorizontalAlignment = HorizontalAlignment.Stretch;
 		Foreground = AvTheme.Text;
+		Background = AvTheme.Surface;
+		BorderBrush = AvTheme.BorderLine;
+		BorderThickness = new Thickness(1);
 
 		ItemTemplate = new FuncDataTemplate<AvDropDownItem>(
 			(item, _) => BuildItemView(item));
@@ -1477,6 +1615,15 @@ internal sealed class AvColorSwatch : Control
 /// <summary>Кнопка выбора цвета — замена SkColorButton.</summary>
 public sealed class AvColorButton : Button
 {
+	/// <summary>
+	/// Оформление берётся от обычной кнопки.
+	///
+	/// Без этого Avalonia ищет оформление по РЕАЛЬНОМУ типу контрола,
+	/// то есть по нашему наследнику, не находит его в теме Fluent
+	/// и оставляет контрол без шаблона — на экране не появляется ничего.
+	/// </summary>
+	protected override Type StyleKeyOverride => typeof(Button);
+
 	private readonly AvColorSwatch _swatch = new();
 
 	public new Action<AvColorButton>? Click { get; set; }
@@ -1560,6 +1707,15 @@ public sealed class AvColorButton : Button
 /// <summary>Кнопка со значком — замена SkPictureButton.</summary>
 public sealed class AvPictureButton : Button
 {
+	/// <summary>
+	/// Оформление берётся от обычной кнопки.
+	///
+	/// Без этого Avalonia ищет оформление по РЕАЛЬНОМУ типу контрола,
+	/// то есть по нашему наследнику, не находит его в теме Fluent
+	/// и оставляет контрол без шаблона — на экране не появляется ничего.
+	/// </summary>
+	protected override Type StyleKeyOverride => typeof(Button);
+
 	private readonly Avalonia.Controls.Image _image = new()
 	{
 		Stretch = Stretch.Uniform,

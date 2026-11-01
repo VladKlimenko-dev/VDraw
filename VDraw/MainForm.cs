@@ -80,6 +80,53 @@ public partial class MainForm : Form
 
 	#region Form Initialization methods
 
+	/// <summary>Кнопка переключения светлой и тёмной темы.</summary>
+	private Button _theme_toggle_but = null!;
+
+	/// <summary>
+	/// Создаёт кнопку смены темы и ставит её рядом с кнопкой справки.
+	///
+	/// В коде, а не в дизайнере: дизайнер формы пользователь правит сам,
+	/// и добавленная туда кнопка потерялась бы при первой же перегенерации
+	/// файла. Здесь же она собирается по образцу соседней кнопки справки —
+	/// размер, стыковка и отступы берутся у неё, поэтому полоса остаётся
+	/// ровной, какой бы та ни стала потом.
+	/// </summary>
+	private void InitThemeToggleButton()
+	{
+		_theme_toggle_but = new Button
+		{
+			Name = "theme_toggle_but",
+			Dock = help_but.Dock,
+			MinimumSize = help_but.MinimumSize,
+			Size = help_but.Size,
+			Margin = help_but.Margin,
+			Padding = help_but.Padding,
+			UseVisualStyleBackColor = true,
+			TabStop = false,
+			Text = string.Empty
+		};
+
+		_theme_toggle_but.Click += (_, _) =>
+		{
+			SkUiTheme.ToggleTheme();
+
+			// Выбор запоминается сразу, а не при закрытии окна: тему
+			// переключают именно тогда, когда она не устраивает, и
+			// возвращаться к прежней при следующем запуске незачем.
+			SettingsStore.Save();
+		};
+
+		toolTip.SetToolTip(_theme_toggle_but, L.T("Light / dark theme"));
+
+		main_toolbar_panel.Controls.Add(_theme_toggle_but);
+
+		// Стыковка слева раскладывает детей от последнего к первому,
+		// поэтому индекс 1 ставит кнопку между справкой и переключателем
+		// языка — там, где ей место по смыслу.
+		main_toolbar_panel.Controls.SetChildIndex(_theme_toggle_but, 1);
+	}
+
 	public MainForm()
 	{
 		Icon = new Icon("Resources\\vdraw.ico");
@@ -97,6 +144,11 @@ public partial class MainForm : Form
 		// Последним: запоминает исходные английские тексты, уже
 		// расставленные дизайнером и SetToolTips.
 		InitLanguage();
+
+		// После InitLanguage: кнопка добавляет свою подсказку сама,
+		// а исходные английские тексты к этому моменту уже запомнены.
+		InitThemeToggleButton();
+
 		WinFormsTheme.Register(this);
 		ThemeImages.RegisterMainFormImages(this);
 	}
@@ -895,7 +947,6 @@ public partial class MainForm : Form
 
 		cur_doc = new Document();
 		sel = new SelectionManager();
-		SkUiTheme.SetTheme(SkThemeKind.Light);
 
 		_mainView = new MainView
 		{

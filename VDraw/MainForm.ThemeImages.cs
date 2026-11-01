@@ -91,6 +91,9 @@ public partial class MainForm
 		Icon(d_export_but, "file-export");
 		Icon(d_print_but, "file-print");
 
+		// Тема оформления
+		Icon(_theme_toggle_but, "img-contrast");
+
 		// Правка
 		Icon(undo_but, "undo");
 		Icon(redo_but, "redo");
