@@ -844,6 +844,12 @@ public class AvTextBox : TextBox
 		CornerRadius = new CornerRadius(AvTheme.RadiusSmall);
 		VerticalContentAlignment = VerticalAlignment.Center;
 
+		// Цвет текста задаётся напрямую, а не берётся у темы: так набранное
+		// число видно, даже если словари темы по какой-то причине
+		// не разрешились. Фон и рамку оставляем теме — у неё есть состояния
+		// наведения и фокуса, воспроизводить их вручную не нужно.
+		Foreground = AvTheme.Text;
+
 		// Подписка, а не переопределение OnGotFocus/OnLostFocus: у этих
 		// методов между версиями Avalonia менялся тип аргумента, а события
 		// называются одинаково, и типы в коде называть не нужно.
@@ -1281,6 +1287,7 @@ public sealed class AvDropDownBox : ComboBox
 		CornerRadius = new CornerRadius(AvTheme.RadiusSmall);
 		MaxDropDownHeight = 260;
 		HorizontalAlignment = HorizontalAlignment.Stretch;
+		Foreground = AvTheme.Text;
 
 		ItemTemplate = new FuncDataTemplate<AvDropDownItem>(
 			(item, _) => BuildItemView(item));

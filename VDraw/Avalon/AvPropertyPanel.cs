@@ -6,6 +6,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Styling;
 
 using SkiaSharp;
 
@@ -77,6 +78,22 @@ public sealed class AvPropertyPanel : UserControl
 	};
 
 	private readonly ScrollViewer _scroll;
+
+	/// <summary>
+	/// Область с принудительно заданным вариантом темы.
+	///
+	/// Без неё встроенные контролы Avalonia — поле ввода, галочка,
+	/// выпадающий список — оказывались невидимыми: их шаблоны берут цвета
+	/// из словарей темы через DynamicResource, а внутри хоста WinForms
+	/// вариант темы приложения до них не доходит, и все кисти получались
+	/// пустыми. Отсюда и пустые поля: рамки, текст и значок галочки просто
+	/// нечем было нарисовать. Наши собственные контролы (кнопки, числовое
+	/// поле, образец цвета) при этом рисовались, потому что цвета им
+	/// задаются напрямую из палитры.
+	///
+	/// Область задаёт вариант явно и ни от чего не зависит.
+	/// </summary>
+	private readonly ThemeVariantScope _themeScope;
 
 	private Control? _focused;
 	private Shape? _boundShape;
@@ -170,7 +187,13 @@ public sealed class AvPropertyPanel : UserControl
 			Content = _root
 		};
 
-		Content = _scroll;
+		_themeScope = new ThemeVariantScope
+		{
+			RequestedThemeVariant = CurrentVariant(),
+			Child = _scroll
+		};
+
+		Content = _themeScope;
 
 		// Фокус отслеживается на уровне панели: события GotFocus и LostFocus
 		// всплывают от любого вложенного поля, поэтому одной подписки хватает
@@ -259,9 +282,13 @@ public sealed class AvPropertyPanel : UserControl
 		RebuildForSelection();
 	}
 
+	private static ThemeVariant CurrentVariant()
+		=> SkUiTheme.Current.IsDark ? ThemeVariant.Dark : ThemeVariant.Light;
+
 	private void OnThemeChanged()
 	{
 		Background = AvTheme.PanelBack;
+		_themeScope.RequestedThemeVariant = CurrentVariant();
 
 		if (!IsAttached)
 			return;
@@ -1872,8 +1899,7 @@ public sealed class AvPropertyPanel : UserControl
 		{
 			Direction = AvFlowDirection.Horizontal,
 			Gap = 8f,
-			AutoHeight = true,
-			Height = 30,
+			AutoHeight = true
 		};
 		patternButtonsRow.Add(addPatternBut);
 		patternButtonsRow.Add(deletePatternBut);
@@ -3332,8 +3358,7 @@ public sealed class AvPropertyPanel : UserControl
 					{
 						Direction = AvFlowDirection.Horizontal,
 						Gap = 8f,
-						AutoHeight = true,
-						Height = 30
+						AutoHeight = true
 					};
 
 					save.Width = 80;
@@ -3476,8 +3501,7 @@ public sealed class AvPropertyPanel : UserControl
 					{
 						Direction = AvFlowDirection.Horizontal,
 						Gap = 8f,
-						AutoHeight = true,
-						Height = 30
+						AutoHeight = true
 					};
 
 					load.Width = 120;
@@ -3616,8 +3640,7 @@ public sealed class AvPropertyPanel : UserControl
 		{
 			Direction = AvFlowDirection.Horizontal,
 			Gap = 4f,
-			AutoHeight = true,
-			Height = 28
+			AutoHeight = true
 		};
 
 		styleRow.Add(boldBut);
@@ -3663,7 +3686,7 @@ public sealed class AvPropertyPanel : UserControl
 			Direction = AvFlowDirection.Vertical,
 			Gap = 3f,
 			AutoHeight = true,
-			Width = 120, Height = 96
+			Width = 120
 		};
 
 		for (int row = 0; row < 3; row++)
@@ -3673,7 +3696,7 @@ public sealed class AvPropertyPanel : UserControl
 				Direction = AvFlowDirection.Horizontal,
 				Gap = 3f,
 				AutoHeight = true,
-				Width = 120, Height = 30
+				Width = 120
 			};
 
 			for (int col = 0; col < 3; col++)
@@ -5473,9 +5496,8 @@ public sealed class AvPropertyPanel : UserControl
 			// не потерять последние кнопки: сжимать их означало бы делать
 			// значки нечитаемыми, а горизонтальная прокрутка внутри строки
 			// свойств неуместна.
-			WrapContents = true,
+			WrapContents = true
 
-			Height = 38
 		};
 
 		void addButton(string png, string tip, FillKind kind)
