@@ -3337,8 +3337,10 @@ public sealed class AvPropertyPanel : UserControl
 						Height = 30
 					};
 
-					save.Width = 80, Height = 30;
-					clear.Width = 80, Height = 30;
+					save.Width = 80;
+					save.Height = 30;
+					clear.Width = 80;
+					clear.Height = 30;
 					buttons.Add(save);
 					buttons.Add(clear);
 
@@ -3479,7 +3481,8 @@ public sealed class AvPropertyPanel : UserControl
 						Height = 30
 					};
 
-					load.Width = 120, Height = 30;
+					load.Width = 120;
+					load.Height = 30;
 					buttons.Add(load);
 
 					var tiling = MakeToggle(
