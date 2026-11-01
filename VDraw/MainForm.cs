@@ -151,6 +151,10 @@ public partial class MainForm : Form
 
 		WinFormsTheme.Register(this);
 		ThemeImages.RegisterMainFormImages(this);
+
+		// Кнопки-списки держат значок выбранного варианта и в таблицу
+		// ThemeImages не укладываются — их обновляем отдельно.
+		SkUiTheme.ThemeChanged += RefreshSplitButtonIcons;
 	}
 
 	protected void SetIcons()
@@ -2099,6 +2103,75 @@ public partial class MainForm : Form
 	#endregion
 
 	#region Shape Toolbar buttons
+
+	/// <summary>
+	/// Значок фигуры для кнопки-списка.
+	///
+	/// Эти три кнопки (прямоугольник, окружность, эллипс) показывают значок
+	/// ВЫБРАННОГО варианта и меняют его при выборе из списка, поэтому через
+	/// таблицу ThemeImages их не зарегистрировать — там связь «элемент —
+	/// одно имя» постоянная. Значок берётся по имени в тот момент, когда
+	/// он понадобился; ThemeImages отдаёт его из кэша и уже перекрашенным
+	/// под текущую тему.
+	/// </summary>
+	private static Image? ShapeIcon(string name)
+		=> ThemeImages.Get(name, null, SplitButtonIconSize);
+
+	/// <summary>
+	/// Размер значка для кнопок-списков. Крупнее обычного: их меню
+	/// выставлено на 48 точек, и значок меньшего размера там растягивался
+	/// бы и мылился.
+	/// </summary>
+	private const int SplitButtonIconSize = 48;
+
+	/// <summary>Имя значка для каждого варианта фигуры в кнопках-списках.</summary>
+	private static readonly Dictionary<ShapeToolKind, string> _shapeToolIcons = new()
+	{
+		[ShapeToolKind.Circle2P] = "circle2p",
+		[ShapeToolKind.Circle3P] = "circle3p",
+		[ShapeToolKind.Ellipse3P] = "ellipse3p",
+		[ShapeToolKind.Ellipse5P] = "ellipse5p",
+		[ShapeToolKind.Rectangle] = "rect",
+		[ShapeToolKind.RoundedRectangle] = "rounded_rect",
+		[ShapeToolKind.ChamferedRectangle] = "chamfered_rect"
+	};
+
+	/// <summary>
+	/// Перерисовывает значки кнопок-списков под текущую тему.
+	///
+	/// Нужно потому, что их картинки присвоены один раз при сборке меню,
+	/// а не зарегистрированы в ThemeImages: связь «элемент — одно имя»
+	/// там постоянная, а здесь значок зависит от выбранного варианта.
+	///
+	/// Меняются именно картинки, а не меню целиком: пересборка сбросила бы
+	/// выбранный пользователем вариант обратно на первый, и смена темы
+	/// незаметно переключала бы инструмент.
+	/// </summary>
+	private void RefreshSplitButtonIcons()
+	{
+		RefreshSplitButton(s_new_circle_but, _selectedCircleTool);
+		RefreshSplitButton(s_new_ellipse_but, _selectedEllipseTool);
+		RefreshSplitButton(s_new_rc_but, _selectedRectangleTool);
+	}
+
+	private static void RefreshSplitButton(SkOptionsButton button, ShapeToolKind selected)
+	{
+		if (button.DropDownMenu != null)
+		{
+			foreach (ToolStripItem item in button.DropDownMenu.Items)
+			{
+				if (item is ToolStripMenuItem menuItem
+					&& menuItem.Tag is ShapeToolKind kind
+					&& _shapeToolIcons.TryGetValue(kind, out string? itemName))
+				{
+					menuItem.Image = ShapeIcon(itemName);
+				}
+			}
+		}
+
+		if (_shapeToolIcons.TryGetValue(selected, out string? currentName))
+			button.SelectedImage = ShapeIcon(currentName);
+	}
 	private void InitCircleSplitButton()
 	{
 		var menu = new ContextMenuStrip
@@ -2120,15 +2193,15 @@ public partial class MainForm : Form
 			}
 		}
 
-		var circle2PItem = new ToolStripMenuItem("Circle 2P", Properties.Resources.circle2p,
-			(_, __) => SelectCircle(ShapeToolKind.Circle2P, Properties.Resources.circle2p))
+		var circle2PItem = new ToolStripMenuItem("Circle 2P", ShapeIcon("circle2p"),
+			(_, __) => SelectCircle(ShapeToolKind.Circle2P, ShapeIcon("circle2p")))
 		{
 			Tag = ShapeToolKind.Circle2P,
 			DisplayStyle = ToolStripItemDisplayStyle.ImageAndText
 		};
 
-		var circle3PItem = new ToolStripMenuItem("Circle 3P", Properties.Resources.circle3p,
-			(_, __) => SelectCircle(ShapeToolKind.Circle3P, Properties.Resources.circle3p))
+		var circle3PItem = new ToolStripMenuItem("Circle 3P", ShapeIcon("circle3p"),
+			(_, __) => SelectCircle(ShapeToolKind.Circle3P, ShapeIcon("circle3p")))
 		{
 			Tag = ShapeToolKind.Circle3P,
 			DisplayStyle = ToolStripItemDisplayStyle.ImageAndText
@@ -2138,7 +2211,7 @@ public partial class MainForm : Form
 		menu.Items.Add(circle3PItem);
 
 		s_new_circle_but.DropDownMenu = menu;
-		s_new_circle_but.SelectedImage = Properties.Resources.circle2p;
+		s_new_circle_but.SelectedImage = ShapeIcon("circle2p");
 		_selectedCircleTool = ShapeToolKind.Circle2P;
 		circle2PItem.Checked = true;
 
@@ -2172,15 +2245,15 @@ public partial class MainForm : Form
 			}
 		}
 
-		var ellipse3PItem = new ToolStripMenuItem("Ellipse 3P", Properties.Resources.ellipse3p,
-			(_, __) => SelectEllipse(ShapeToolKind.Ellipse3P, Properties.Resources.ellipse3p))
+		var ellipse3PItem = new ToolStripMenuItem("Ellipse 3P", ShapeIcon("ellipse3p"),
+			(_, __) => SelectEllipse(ShapeToolKind.Ellipse3P, ShapeIcon("ellipse3p")))
 		{
 			Tag = ShapeToolKind.Ellipse3P,
 			DisplayStyle = ToolStripItemDisplayStyle.ImageAndText
 		};
 
-		var ellipse5PItem = new ToolStripMenuItem("Ellipse 5P", Properties.Resources.ellipse5p,
-			(_, __) => SelectEllipse(ShapeToolKind.Ellipse5P, Properties.Resources.ellipse5p))
+		var ellipse5PItem = new ToolStripMenuItem("Ellipse 5P", ShapeIcon("ellipse5p"),
+			(_, __) => SelectEllipse(ShapeToolKind.Ellipse5P, ShapeIcon("ellipse5p")))
 		{
 			Tag = ShapeToolKind.Ellipse5P,
 			DisplayStyle = ToolStripItemDisplayStyle.ImageAndText
@@ -2190,7 +2263,7 @@ public partial class MainForm : Form
 		menu.Items.Add(ellipse5PItem);
 
 		s_new_ellipse_but.DropDownMenu = menu;
-		s_new_ellipse_but.SelectedImage = Properties.Resources.ellipse3p;
+		s_new_ellipse_but.SelectedImage = ShapeIcon("ellipse3p");
 		_selectedEllipseTool = ShapeToolKind.Ellipse3P;
 		ellipse3PItem.Checked = true;
 
@@ -2224,22 +2297,22 @@ public partial class MainForm : Form
 			}
 		}
 
-		var rectItem = new ToolStripMenuItem("Rectangle", Properties.Resources.rect,
-			(_, __) => SelectRectangle(ShapeToolKind.Rectangle, Properties.Resources.rect))
+		var rectItem = new ToolStripMenuItem("Rectangle", ShapeIcon("rect"),
+			(_, __) => SelectRectangle(ShapeToolKind.Rectangle, ShapeIcon("rect")))
 		{
 			Tag = ShapeToolKind.Rectangle,
 			DisplayStyle = ToolStripItemDisplayStyle.ImageAndText
 		};
 
-		var roundedRectItem = new ToolStripMenuItem("Rounded Rectangle", Properties.Resources.rounded_rect,
-			(_, __) => SelectRectangle(ShapeToolKind.RoundedRectangle, Properties.Resources.rounded_rect))
+		var roundedRectItem = new ToolStripMenuItem("Rounded Rectangle", ShapeIcon("rounded_rect"),
+			(_, __) => SelectRectangle(ShapeToolKind.RoundedRectangle, ShapeIcon("rounded_rect")))
 		{
 			Tag = ShapeToolKind.RoundedRectangle,
 			DisplayStyle = ToolStripItemDisplayStyle.ImageAndText
 		};
 
-		var chamferedRectItem = new ToolStripMenuItem("Chamfered Rectangle", Properties.Resources.chamfered_rect,
-			(_, __) => SelectRectangle(ShapeToolKind.ChamferedRectangle, Properties.Resources.chamfered_rect))
+		var chamferedRectItem = new ToolStripMenuItem("Chamfered Rectangle", ShapeIcon("chamfered_rect"),
+			(_, __) => SelectRectangle(ShapeToolKind.ChamferedRectangle, ShapeIcon("chamfered_rect")))
 		{
 			Tag = ShapeToolKind.ChamferedRectangle,
 			DisplayStyle = ToolStripItemDisplayStyle.ImageAndText
@@ -2250,7 +2323,7 @@ public partial class MainForm : Form
 		menu.Items.Add(chamferedRectItem);
 
 		s_new_rc_but.DropDownMenu = menu;
-		s_new_rc_but.SelectedImage = Properties.Resources.rect;
+		s_new_rc_but.SelectedImage = ShapeIcon("rect");
 		_selectedRectangleTool = ShapeToolKind.Rectangle;
 		rectItem.Checked = true;
 

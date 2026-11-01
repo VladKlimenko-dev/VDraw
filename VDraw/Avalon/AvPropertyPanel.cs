@@ -422,12 +422,27 @@ public sealed class AvPropertyPanel : UserControl
 			InvalidateVisual();
 	}
 
+	/// <summary>
+	/// Геометрия выделения изменилась — обновить ЗНАЧЕНИЯ, не пересобирая
+	/// панель.
+	///
+	/// Это горячий путь: при перетаскивании фигуры мышью событие приходит
+	/// на каждое движение. Skia-версия позволяла себе пересборку, потому
+	/// что её контролы были обычными объектами и создавались мгновенно.
+	/// Контролы Avalonia настоящие: у каждого своё хранилище свойств,
+	/// шаблон, место в дереве и проход раскладки. Сотня таких контролов,
+	/// создаваемая заново шестьдесят раз в секунду, и давала кадр в секунду
+	/// при перетаскивании простого прямоугольника.
+	///
+	/// Набор строк от движения мыши не меняется — меняются только числа
+	/// в полях, а их переписывает RefreshFromBoundShape.
+	/// </summary>
 	private void OnSelectionGeometryChanged()
 	{
 		if (!IsAttached)
 			return;
 
-		RebuildForSelection();
+		RefreshFromBoundShape();
 	}
 
 	/// <summary>
@@ -991,9 +1006,6 @@ public sealed class AvPropertyPanel : UserControl
 
 		if (_focused is AvTextBox || _focused is AvNumTextBox || _focused is AvNumericUpDown)
 			return;
-
-		var worldBounds = _boundShape.GetBounds();
-		var m = _boundShape.LocalTransform;
 
 		_updatingFromShape = true;
 		try
