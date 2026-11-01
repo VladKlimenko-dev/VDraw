@@ -806,10 +806,14 @@ public class AvTextBox : TextBox
 
 	private double _lastArrangedHeight = -1;
 
+	/// <summary>
+	/// Подсказка в пустом поле. В Avalonia 12 свойство называется
+	/// PlaceholderText, прежнее Watermark помечено устаревшим.
+	/// </summary>
 	public string Placeholder
 	{
-		get => Watermark ?? string.Empty;
-		set => Watermark = value;
+		get => PlaceholderText ?? string.Empty;
+		set => PlaceholderText = value;
 	}
 
 	public bool Multiline

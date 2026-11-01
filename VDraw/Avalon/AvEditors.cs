@@ -5,9 +5,17 @@ using Avalonia.Media;
 
 using SkiaSharp;
 
+// FillStyle лежит в VDraw.Shapes: сериализация узора (строковое определение
+// клеток) живёт в модели заливки, и редактор пользуется ею, а не своей копией.
+using VDraw.Shapes;
+
 // О псевдонимах см. пояснение в начале AvTheme.cs.
 using Brushes = Avalonia.Media.Brushes;
 using Color = Avalonia.Media.Color;
+// GradientStop есть и в VDraw.Shapes (узел градиента в модели заливки),
+// и в Avalonia.Media (узел кисти). Здесь рисуется кисть, поэтому нужен
+// второй; узлы модели этот редактор получает как GradientStopInfo.
+using GradientStop = Avalonia.Media.GradientStop;
 using Control = Avalonia.Controls.Control;
 using Pen = Avalonia.Media.Pen;
 using Point = Avalonia.Point;

@@ -2,6 +2,7 @@ using System.Globalization;
 
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
@@ -24,6 +25,10 @@ using CheckBox = Avalonia.Controls.CheckBox;
 using Color = Avalonia.Media.Color;
 using ComboBox = Avalonia.Controls.ComboBox;
 using Control = Avalonia.Controls.Control;
+// Page и GradientStop есть и у Avalonia, и у VDraw. Здесь нужны наши:
+// Page — страница документа, GradientStop — узел градиента в модели заливки.
+using GradientStop = VDraw.Shapes.GradientStop;
+using Page = VDraw.Documents.Page;
 using FontFamily = Avalonia.Media.FontFamily;
 using UserControl = Avalonia.Controls.UserControl;
 using Orientation = Avalonia.Layout.Orientation;
@@ -136,14 +141,6 @@ public sealed class AvPropertyPanel : UserControl
 	private AvPatternGridEditor? _strokePatternEditor;
 	private AvDropDownBox? _strokeTypeDropDown;
 	private AvNumericUpDown? _strokePatternLenEditor;
-
-	/// <summary>
-	/// Идёт программное заполнение редактора паттерна. Пока true, обратная
-	/// запись из редактора в модель подавляется: при заполнении редактор
-	/// проходит через промежуточное пустое состояние, и запись из него
-	/// затирала бы правильный паттерн.
-	/// </summary>
-	private bool _suppressStrokePatternWriteback;
 
 	/// <summary>
 	/// Иконочный шрифт для кнопок выравнивания текста.
