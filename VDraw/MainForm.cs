@@ -25,7 +25,7 @@ public partial class MainForm : Form
 
 	public static Document? cur_doc = null;
 	public static SelectionManager sel;
-	private SkPropertyPanelControl _propPanel = null!;
+	private AvPropertyPanelHost _propPanel = null!;
 	private PageTabsControl _pageTabs = null!;
 	private AnimationPanel _animPanel = null!;
 	private UndoStack? _undoStack;
@@ -537,7 +537,7 @@ public partial class MainForm : Form
 		while (focused is ContainerControl container && container.ActiveControl != null)
 			focused = container.ActiveControl;
 
-		if (focused is SkPropertyPanelControl panel)
+		if (focused is AvPropertyPanelHost panel)
 			return panel.IsTextEditing;
 
 		// Панель анимации тоже рисует свои поля сама: набор числа кадров
@@ -906,7 +906,7 @@ public partial class MainForm : Form
 		_mainView.SetPage(cur_doc.pages[0]);
 		HookUndoStack();
 
-		_propPanel = new SkPropertyPanelControl();
+		_propPanel = new AvPropertyPanelHost();
 		_mainView.SelectionChanged += (_, __) =>
 		{
 			// Передаётся всё выделение, а не только одиночная фигура:

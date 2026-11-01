@@ -18,6 +18,35 @@
   </ItemGroup>
 
   <!--
+    Avalonia — слой интерфейса для новых панелей (папка Avalon). Окон у неё
+    своих нет: контролы вставляются в WinForms через
+    WinFormsAvaloniaControlHost из пакета Avalonia.Win32.Interoperability.
+
+    Все четыре пакета обязаны быть одной версии: при расхождении NuGet
+    подтянет разные сборки Avalonia, и тема Fluent окажется собрана против
+    другого ядра.
+
+    Avalonia.Desktop нужен ради UsePlatformDetect() в AvBootstrap —
+    без него приложению неизвестно, каким бэкендом рисовать.
+  -->
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="12.1.4" />
+    <PackageReference Include="Avalonia.Desktop" Version="12.1.4" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.4" />
+    <PackageReference Include="Avalonia.Win32.Interoperability" Version="12.1.4" />
+  </ItemGroup>
+
+  <!--
+    Иконочный шрифт нужен Avalonia как ресурс сборки: шрифт с диска по пути
+    она не открывает. Файл при этом остаётся и в Resources для WinForms —
+    тот слой читает его именно оттуда (MainForm.SetIcons), поэтому запись
+    ниже добавляет второй экземпляр внутрь сборки, а не переносит файл.
+  -->
+  <ItemGroup>
+    <AvaloniaResource Include="Resources\FluentSystemIcons-Resizable.ttf" />
+  </ItemGroup>
+
+  <!--
     Единое правило копирования вместо пятидесяти отдельных записей <None Update>.
     Любой новый файл, положенный в Resources (включая вложенные папки Patterns,
     Textures, Brushes, Icons), попадает в каталог сборки автоматически —

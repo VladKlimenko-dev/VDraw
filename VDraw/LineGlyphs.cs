@@ -110,6 +110,19 @@ public static class LineGlyphLibrary
 			yield return new SkDropDownItem(i.Id, i.DisplayName, i.PreviewBitmap);
 	}
 
+	/// <summary>
+	/// То же для списка Avalonia (панель свойств).
+	///
+	/// Отдельный метод, а не переделка прежнего: тип элемента у двух
+	/// слоёв интерфейса разный, а картинка — одна и та же SKBitmap,
+	/// и перевод в формат Avalonia делает конструктор AvDropDownItem.
+	/// </summary>
+	public static IEnumerable<Ui.Avalon.AvDropDownItem> ToAvDropDownItems()
+	{
+		foreach (var i in Items)
+			yield return new Ui.Avalon.AvDropDownItem(i.Id, i.DisplayName, i.PreviewBitmap);
+	}
+
 	#endregion
 
 	#region Отступ линии под глиф

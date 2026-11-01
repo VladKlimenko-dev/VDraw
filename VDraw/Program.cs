@@ -32,6 +32,15 @@ namespace VDraw
                 // должны быть выбраны к моменту первой отрисовки, иначе
                 // пользователь увидит вспышку исходного оформления.
                 SettingsStore.Load();
+
+                // Avalonia поднимается до создания окна: панель свойств
+                // живёт внутри WinForms как контрол Avalonia, и к моменту
+                // работы конструктора MainForm приложение Avalonia со своей
+                // темой должно уже существовать. Ошибка здесь не фатальна —
+                // AvBootstrap её запоминает, а панель покажет причину
+                // вместо того, чтобы молча не появиться.
+                VDraw.Ui.Avalon.AvBootstrap.EnsureStarted();
+
                 Application.Run(new MainForm());
             }
             catch (Exception ex)
