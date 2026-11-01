@@ -19,6 +19,12 @@ using Button = Avalonia.Controls.Button;
 using CheckBox = Avalonia.Controls.CheckBox;
 using Color = Avalonia.Media.Color;
 using ComboBox = Avalonia.Controls.ComboBox;
+using Cursor = Avalonia.Input.Cursor;
+using FontFamily = Avalonia.Media.FontFamily;
+using HorizontalAlignment = Avalonia.Layout.HorizontalAlignment;
+using KeyEventArgs = Avalonia.Input.KeyEventArgs;
+using ToolTip = Avalonia.Controls.ToolTip;
+using VerticalAlignment = Avalonia.Layout.VerticalAlignment;
 using Control = Avalonia.Controls.Control;
 using Grid = Avalonia.Controls.Grid;
 using Orientation = Avalonia.Layout.Orientation;
@@ -833,6 +839,17 @@ public class AvTextBox : TextBox
 		Padding = new Thickness(6, 0, 6, 0);
 		CornerRadius = new CornerRadius(AvTheme.RadiusSmall);
 		VerticalContentAlignment = VerticalAlignment.Center;
+
+		// Подписка, а не переопределение OnGotFocus/OnLostFocus: у этих
+		// методов между версиями Avalonia менялся тип аргумента, а события
+		// называются одинаково, и типы в коде называть не нужно.
+		//
+		// Исходное значение запоминается при входе в поле: без него
+		// EditingFinished поднимался бы и тогда, когда пользователь просто
+		// прошёл по полю табуляцией, ничего не изменив.
+		GotFocus += (_, _) => _committed = Text ?? string.Empty;
+
+		LostFocus += (_, _) => FinishEditing();
 	}
 
 	/// <summary>Применить набранное немедленно.</summary>
@@ -871,22 +888,6 @@ public class AvTextBox : TextBox
 		}
 
 		return result;
-	}
-
-	protected override void OnGotFocus(GotFocusEventArgs e)
-	{
-		base.OnGotFocus(e);
-
-		// Исходное значение запоминается при входе в поле: без него
-		// EditingFinished поднимался бы и тогда, когда пользователь
-		// просто прошёл по полю табуляцией, ничего не изменив.
-		_committed = Text ?? string.Empty;
-	}
-
-	protected override void OnLostFocus(Avalonia.Interactivity.RoutedEventArgs e)
-	{
-		base.OnLostFocus(e);
-		FinishEditing();
 	}
 
 	protected override void OnKeyDown(KeyEventArgs e)
@@ -1243,7 +1244,13 @@ public sealed class AvDropDownBox : ComboBox
 	public string SelectedText =>
 		SelectedIndex >= 0 && SelectedIndex < _items.Count ? _items[SelectedIndex].Text : string.Empty;
 
-	public string SelectedValue =>
+	/// <summary>
+	/// Значение выбранного элемента. Скрывает одноимённое свойство
+	/// SelectingItemsControl: там это object, выбранный по SelectedValueBinding,
+	/// а здесь — строковый идентификатор элемента AvDropDownItem, которым
+	/// панель свойств и обменивается с моделью.
+	/// </summary>
+	public new string SelectedValue =>
 		SelectedIndex >= 0 && SelectedIndex < _items.Count ? _items[SelectedIndex].Value : string.Empty;
 
 	public double ItemHeight { get; set; } = 26;
