@@ -61,5 +61,112 @@ public partial class MainForm
 		ThemeImages.Add(s_new_poly_but, "poly", ImageSlot.Foreground);
 		ThemeImages.Add(s_new_free_poly_but, "free_poly", ImageSlot.Foreground);
 		ThemeImages.Add(measure_angle_but, "measure_angle", ImageSlot.Foreground);
+
+		RegisterGlyphButtonIcons();
+		RegisterMenuIcons();
+	}
+
+	/// <summary>
+	/// Кнопки, которые раньше показывали символ иконочного шрифта.
+	///
+	/// Им передаётся clearText: подпись с глифом снимается в тот момент,
+	/// когда для кнопки нашёлся файл значка. Пока файла нет, остаётся
+	/// глиф — набор можно переводить на SVG по частям, и приложение
+    /// в промежуточном состоянии выглядит разнородно, но работает.
+	///
+	/// Имена здесь — имена файлов в Resources\Icons, без таблицы
+	/// соответствий: таблица нужна была только старым именам PNG.
+	/// </summary>
+	private void RegisterGlyphButtonIcons()
+	{
+		void Icon(Control control, string name)
+			=> ThemeImages.Add(control, name, ImageSlot.Foreground, 0, clearText: true);
+
+		// Тулбар документа
+		Icon(d_new_but, "file-new");
+		Icon(d_open_but, "file-open");
+		Icon(d_import_but, "file-import");
+		Icon(d_save_but, "file-save");
+		Icon(d_save_as_but, "file-save-as");
+		Icon(d_export_but, "file-export");
+		Icon(d_print_but, "file-print");
+
+		// Правка
+		Icon(undo_but, "undo");
+		Icon(redo_but, "redo");
+		Icon(copy_but, "edit-copy");
+		Icon(paste_but, "edit-paste");
+		Icon(delete_but, "delete");
+		Icon(format_but, "format-painter");
+		Icon(help_but, "help");
+
+		// Вид
+		Icon(v_scale_page_but, "zoom-fit-page");
+		Icon(v_scale_all_but, "zoom-fit-all");
+		Icon(v_scale_selected_but, "zoom-fit-selection");
+
+		// Страница
+		Icon(page_props_but, "page-properties");
+		Icon(page_vertical_but, "page-portrait");
+		Icon(page_horizontal_but, "page-landscape");
+		Icon(page_lock_ratio_but, "lock-ratio");
+		Icon(page_grid_but, "page-grid");
+		Icon(page_print_borders_but, "page-print-borders");
+
+		// Инструменты рисования
+		Icon(s_cursor_but, "tool-select");
+		Icon(s_new_text_but, "shape-text");
+		Icon(s_new_image_but, "shape-image");
+		Icon(image_mode_but, "mode-image");
+		Icon(s_morth_but, "tool-morph");
+
+		// Порядок и группировка
+		Icon(s_bring_to_front_but, "order-bring-front");
+		Icon(s_send_back_but, "order-send-back");
+		Icon(s_group_but, "group");
+		Icon(s_ungroup_but, "ungroup");
+
+		// Отражение и поворот
+		Icon(flip_horizontal_but, "flip-horizontal");
+		Icon(flip_vertical_but, "flip-vertical");
+		Icon(rotate_CW_90_but, "rotate-cw");
+		Icon(rotate_CCW_90_but, "rotate-ccw");
+
+		// Растровый редактор
+		Icon(i_brush_but, "img-brush");
+		Icon(i_erasor_but, "img-eraser");
+		Icon(i_fill_but, "img-fill");
+		Icon(i_select_rect_but, "img-select-rect");
+		Icon(i_select_lasso_but, "img-select-lasso");
+		Icon(i_light_but, "img-lighten");
+		Icon(i_dark_but, "img-darken");
+		Icon(i_contrast_but, "img-contrast");
+		Icon(i_blackwhite_but, "img-blackwhite");
+	}
+
+	/// <summary>
+	/// Пункты меню, у которых значков не было вовсе: всё меню File,
+	/// Help и подменю Custom shapes.
+	/// </summary>
+	private void RegisterMenuIcons()
+	{
+		ThemeImages.Add(menu_file_new, "menu_file_new");
+		ThemeImages.Add(menu_file_open, "menu_file_open");
+		ThemeImages.Add(menu_file_import, "menu_file_import");
+		ThemeImages.Add(menu_file_save, "menu_file_save");
+		ThemeImages.Add(menu_file_save_as, "menu_file_save_as");
+		ThemeImages.Add(menu_file_export, "menu_file_export");
+		ThemeImages.Add(menu_file_print, "menu_file_print");
+		ThemeImages.Add(menu_file_close, "menu_file_close");
+		ThemeImages.Add(menu_settings, "menu_settings");
+
+		ThemeImages.Add(menu_manual, "menu_manual");
+		ThemeImages.Add(menu_about, "menu_about");
+
+		ThemeImages.Add(menu_obj_add_to_custom_shapes, "menu_obj_add_to_custom_shapes");
+		ThemeImages.Add(menu_obj_import_vdrs, "menu_obj_import_vdrs");
+		ThemeImages.Add(menu_obj_import_visio, "menu_obj_import_visio");
+
+		ThemeImages.Add(convertToBitmapToolStripMenuItem, "convertToBitmapToolStripMenuItem");
 	}
 }

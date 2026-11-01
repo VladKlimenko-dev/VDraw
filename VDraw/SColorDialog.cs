@@ -123,8 +123,20 @@ public partial class SColorDialog : Form
 		spb[21].BackColor = Color.Indigo;
 		spb[22].BackColor = Color.Violet;
 
-		sample_but.Font = MainForm.fSnipit;
-		sample_but.Text = "\ue7ea";
+		// Пипетка. Значок из набора SVG; если файла нет, остаётся прежний
+		// символ иконочного шрифта — набор пополняется по частям.
+		var eyedropper = ThemeImages.Get("eyedropper", null, 24);
+
+		if (eyedropper != null)
+		{
+			sample_but.Image = eyedropper;
+			sample_but.Text = string.Empty;
+		}
+		else
+		{
+			sample_but.Font = MainForm.fSnipit;
+			sample_but.Text = "\ue7ea";
+		}
 
 		colors = 23;
 		for (int i = colors; i < picture_boxes_x * picture_boxes_y; i++)

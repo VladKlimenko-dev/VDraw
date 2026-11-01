@@ -51,25 +51,33 @@ public partial class MainForm
 		// куда мышь успела уехать по дороге к пункту.
 		var pastePoint = _mainView.ScreenToPage(screenPoint);
 
-		var menu = new ContextMenuStrip { ShowImageMargin = false };
+		// Значок пункта. Меню создаётся заново на каждый щелчок правой
+		// кнопкой, поэтому картинки берутся из кэша ThemeImages, а не
+		// рисуются из SVG каждый раз.
+		static Image? Icon(string name)
+			=> ThemeImages.Get(name, null, ThemeImages.MenuIconSize);
+
+		// Поле под значки включено: у пунктов контекстного меню значки
+		// появились вместе с набором SVG, и без него они не показывались бы.
+		var menu = new ContextMenuStrip { ShowImageMargin = true };
 
 		// Меню одноразовое: без освобождения на каждый щелчок оставался бы
 		// висеть неуправляемый дескриптор окна.
 		menu.Closed += (_, _) => menu.BeginInvoke(new Action(menu.Dispose));
 
-		var copy = new ToolStripMenuItem(L.T("Copy"), null, (_, _) => CopySelectedShapes())
+		var copy = new ToolStripMenuItem(L.T("Copy"), Icon("edit-copy"), (_, _) => CopySelectedShapes())
 		{
 			Enabled = selected.Count > 0
 		};
 
-		var paste = new ToolStripMenuItem(L.T("Paste"), null, (_, _) => PasteCopiedShapes(pastePoint))
+		var paste = new ToolStripMenuItem(L.T("Paste"), Icon("edit-paste"), (_, _) => PasteCopiedShapes(pastePoint))
 		{
 			Enabled = CanPasteShapes()
 		};
 
 		var toCurves = new ToolStripMenuItem(
 			L.T("Convert to curves"),
-			null,
+			Icon("convert-to-curve"),
 			(_, _) => s_convert_to_curve_but_Click(this, EventArgs.Empty))
 		{
 			Enabled = selected.Any(CanConvertToCurve)
@@ -77,7 +85,7 @@ public partial class MainForm
 
 		var toBitmap = new ToolStripMenuItem(
 			L.T("Convert to bitmap"),
-			null,
+			Icon("convert-to-bitmap"),
 			(_, _) => ConvertSelectionToBitmap())
 		{
 			Enabled = selected.Count > 0
@@ -85,7 +93,7 @@ public partial class MainForm
 
 		var group = new ToolStripMenuItem(
 			L.T("Group selected"),
-			null,
+			Icon("group"),
 			(_, _) => s_group_but_Click(this, EventArgs.Empty))
 		{
 			// Группировать есть что только начиная с двух фигур.
@@ -94,13 +102,13 @@ public partial class MainForm
 
 		var ungroup = new ToolStripMenuItem(
 			L.T("Ungroup selected"),
-			null,
+			Icon("ungroup"),
 			(_, _) => s_ungroup_but_Click(this, EventArgs.Empty))
 		{
 			Enabled = selected.OfType<GroupShape>().Any()
 		};
 
-		var delete = new ToolStripMenuItem(L.T("Delete"), null, (_, _) => DeleteSelectedShapes())
+		var delete = new ToolStripMenuItem(L.T("Delete"), Icon("delete"), (_, _) => DeleteSelectedShapes())
 		{
 			Enabled = selected.Count > 0
 		};

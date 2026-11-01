@@ -159,18 +159,6 @@ public sealed class AvPropertyPanel : UserControl
 	private AvDropDownBox? _strokeTypeDropDown;
 	private AvNumericUpDown? _strokePatternLenEditor;
 
-	/// <summary>
-	/// Иконочный шрифт для кнопок выравнивания текста.
-	///
-	/// Тот же файл, которым подписаны кнопки тулбаров, но подключён иначе:
-	/// Avalonia не умеет брать шрифт с диска по пути, ему нужен ресурс
-	/// сборки. Поэтому в csproj добавлена строка AvaloniaResource для
-	/// FluentSystemIcons-Resizable.ttf — файл попадает в сборку вторым
-	/// экземпляром, зато ссылка на него не зависит от рабочего каталога.
-	/// </summary>
-	public static FontFamily IconFont { get; } = new(
-		"avares://VDraw/Resources/FluentSystemIcons-Resizable.ttf#FluentSystemIcons-Resizable");
-
 	#endregion
 
 	#region Создание, подключение и раскладка
@@ -3674,11 +3662,12 @@ public sealed class AvPropertyPanel : UserControl
 		// поэтому порядок значений в перечислениях совпадает с порядком кнопок.
 		var alignButtons = new AvButton[9];
 
-		string[] alignGlyphs =
+		// Значки выравнивания: тот же порядок, что и у индексов сетки.
+		string[] alignIcons =
 		{
-			"\uf29b", "\uf299", "\uf29d",
-			"\uf291", "\uf28d", "\uf293",
-			"\uf287", "\uf285", "\uf289"
+			"align-top-left", "align-top-center", "align-top-right",
+			"align-middle-left", "align-middle-center", "align-middle-right",
+			"align-bottom-left", "align-bottom-center", "align-bottom-right"
 		};
 
 		var alignGrid = new AvFlow
@@ -3705,9 +3694,14 @@ public sealed class AvPropertyPanel : UserControl
 
 				var btn = new AvButton
 				{
-					Text = alignGlyphs[index],
-					Width = 30, Height = 28,
-					FontFamily = IconFont
+					Width = 30,
+					Height = 28,
+					Padding = new Thickness(2),
+					Content = new Avalonia.Controls.Image
+					{
+						Source = AvInterop.LoadUiBitmap(alignIcons[index], 24),
+						Stretch = Stretch.Uniform
+					}
 				};
 
 				alignButtons[index] = btn;

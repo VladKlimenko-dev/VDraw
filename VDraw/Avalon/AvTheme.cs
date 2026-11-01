@@ -160,35 +160,66 @@ public static class AvInterop
 	}
 
 	/// <summary>
-	/// Загружает значок из каталога Resources рядом с исполняемым файлом.
-	/// Повторяет LoadUiBitmap старой панели, но сразу отдаёт картинку Avalonia.
+	/// Значок для панели свойств.
+	///
+	/// Сначала ищется SVG в Resources\Icons — он перекрашивается под тему
+	/// при отрисовке. Если файла нет, берётся прежний PNG из Resources:
+	/// так набор значков можно пополнять по частям, и панель не остаётся
+	/// пустой там, где нового значка ещё не нарисовали.
+	///
+	/// Имя принимается и с расширением («fill_none.png»), и без него:
+	/// перенесённый из Skia-версии код передаёт имя файла PNG, а новый —
+	/// имя значка.
 	/// </summary>
-	public static Bitmap? LoadUiBitmap(string fileName)
+	public static Bitmap? LoadUiBitmap(string fileName, int size = 32)
 	{
-		if (_uiBitmaps.TryGetValue(fileName, out var cached))
+		string key = fileName + "#" + size + (SkUiTheme.Current.IsDark ? "#d" : "#l");
+
+		if (_uiBitmaps.TryGetValue(key, out var cached))
 			return cached;
 
-		Bitmap? result = null;
-
-		try
-		{
-			string path = Path.Combine(
-				AppDomain.CurrentDomain.BaseDirectory, "Resources", fileName);
-
-			if (File.Exists(path))
-				result = new Bitmap(path);
-		}
-		catch
-		{
-			result = null;
-		}
+		Bitmap? result = LoadSvg(fileName, size) ?? LoadPng(fileName);
 
 		// Кэшируется и неудача: панель пересобирается при каждой смене
 		// выделения, и отсутствующий файл иначе искался бы на диске заново
 		// десятки раз в секунду.
-		_uiBitmaps[fileName] = result;
+		_uiBitmaps[key] = result;
 
 		return result;
+	}
+
+	private static Bitmap? LoadSvg(string fileName, int size)
+	{
+		string name = Path.GetFileNameWithoutExtension(fileName);
+
+		if (string.IsNullOrEmpty(name))
+			return null;
+
+		name = ThemeImages.SvgNameFor(name);
+
+		var palette = SkUiTheme.Current;
+
+		using var rendered = SvgIcon.Render(name, size, palette.Text, palette.Surface);
+
+		return rendered.ToAvalonia();
+	}
+
+	private static Bitmap? LoadPng(string fileName)
+	{
+		try
+		{
+			if (!Path.HasExtension(fileName))
+				fileName += ".png";
+
+			string path = Path.Combine(
+				AppDomain.CurrentDomain.BaseDirectory, "Resources", fileName);
+
+			return File.Exists(path) ? new Bitmap(path) : null;
+		}
+		catch
+		{
+			return null;
+		}
 	}
 
 	private static readonly Dictionary<string, Bitmap?> _uiBitmaps =
