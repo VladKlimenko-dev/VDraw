@@ -801,7 +801,9 @@ public sealed class AvCheckBox : Control
 	private FormattedText BuildText() => new(
 		Text,
 		CultureInfo.CurrentCulture,
-		FlowDirection.LeftToRight,
+		// Полное имя типа: у Visual есть одноимённое СВОЙСТВО FlowDirection,
+		// и короткая запись читалась бы как обращение к нему (CS0176).
+		Avalonia.Media.FlowDirection.LeftToRight,
 		Typeface.Default,
 		AvTheme.FontSize,
 		IsEnabled ? AvTheme.Text : AvTheme.TextMuted);

@@ -286,7 +286,6 @@ partial class DocPropertiesForm
     private NumericUpDown width_nud;
     private NumericUpDown height_nud;
     private Label label6;
-    private Label label7;
     private NumericUpDown dpi_nud;
     private Label label8;
 }

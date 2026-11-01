@@ -1,4 +1,19 @@
-﻿using SkiaSharp;
+﻿// SkiaSharp 4 объявила устаревшим изменяемый SKPath: построение пути
+// переехало в SKPathBuilder, а SKPaint.GetFillPath и SKPathMeasure.GetSegment
+// получили перегрузки под него.
+//
+// Предупреждение приглушено здесь, а не исправлено, сознательно. Переход
+// на SKPathBuilder — это не замена имён: путь строится не одним куском,
+// его читают по ходу построения (Bounds, Contains), передают между методами
+// и дополняют по условию. Переписать это вслепую, без прогона рисования,
+// значит менять ядро отрисовки наугад — а ядро сейчас работает.
+//
+// Приглушено по файлам, а не одной строкой в csproj: так видно, где
+// переход ещё предстоит, и устаревшие вызовы в остальном проекте
+// продолжают попадать в список предупреждений.
+#pragma warning disable CS0618 // переход на SKPathBuilder — отдельная задача
+
+using SkiaSharp;
 using System.Reflection;
 using System.Windows.Forms.VisualStyles;
 using System.Xml.Linq;
@@ -2882,7 +2897,7 @@ public sealed class ImageShape : CurveShape
 		var finalMatrix = Geometry.Multiply(GetWorldTransform(), cacheToLocal);
 
 		canvas.Save();
-		canvas.Concat(ref finalMatrix);
+		canvas.Concat(in finalMatrix);
 
 		var sampling = new SKSamplingOptions(SKFilterMode.Nearest, SKMipmapMode.None);
 		canvas.DrawBitmap(cache, 0f, 0f, sampling);
@@ -2986,7 +3001,7 @@ public sealed class ImageShape : CurveShape
 		var finalMatrix = Geometry.Multiply(GetWorldTransform(), bitmapToLocal);
 
 		canvas.Save();
-		canvas.Concat(ref finalMatrix);
+		canvas.Concat(in finalMatrix);
 
 		var sampling = new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Linear);
 		canvas.DrawBitmap(bitmap, 0f, 0f, sampling);
@@ -3013,7 +3028,7 @@ public sealed class ImageShape : CurveShape
 		var finalMatrix = Geometry.Multiply(GetWorldTransform(), imageToLocal);
 
 		canvas.Save();
-		canvas.Concat(ref finalMatrix);
+		canvas.Concat(in finalMatrix);
 
 		var sampling = new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.None);
 

@@ -1,4 +1,19 @@
-﻿using SkiaSharp;
+﻿// SkiaSharp 4 объявила устаревшим изменяемый SKPath: построение пути
+// переехало в SKPathBuilder, а SKPaint.GetFillPath и SKPathMeasure.GetSegment
+// получили перегрузки под него.
+//
+// Предупреждение приглушено здесь, а не исправлено, сознательно. Переход
+// на SKPathBuilder — это не замена имён: путь строится не одним куском,
+// его читают по ходу построения (Bounds, Contains), передают между методами
+// и дополняют по условию. Переписать это вслепую, без прогона рисования,
+// значит менять ядро отрисовки наугад — а ядро сейчас работает.
+//
+// Приглушено по файлам, а не одной строкой в csproj: так видно, где
+// переход ещё предстоит, и устаревшие вызовы в остальном проекте
+// продолжают попадать в список предупреждений.
+#pragma warning disable CS0618 // переход на SKPathBuilder — отдельная задача
+
+using SkiaSharp;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -2358,7 +2373,6 @@ public sealed class CurveNodeMarqueeSelectionOperation : DragOperation
 {
 	private readonly CurveShape shape;
 	private readonly HashSet<int> initialSelected = new();
-	private int initialFocusedIndex = -1;
 	public SKRect Rect { get; private set; }
 
 	public CurveNodeMarqueeSelectionOperation(CurveShape shape)
@@ -2373,7 +2387,6 @@ public sealed class CurveNodeMarqueeSelectionOperation : DragOperation
 		Rect = new SKRect(pagePoint.X, pagePoint.Y, pagePoint.X, pagePoint.Y);
 
 		initialSelected.Clear();
-		initialFocusedIndex = -1;
 
 		for (int i = 0; i < shape.Nodes.Count; i++)
 		{

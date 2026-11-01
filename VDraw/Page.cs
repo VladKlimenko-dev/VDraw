@@ -110,7 +110,14 @@ public sealed class Page : PaperFormatData
 
 	public SKRect PageRectMm => new SKRect(0, 0, SizeMm.Width, SizeMm.Height);
 
-	public void SetFormatData(PaperFormatData format_data)
+	/// <summary>
+	/// Принимает параметры формата.
+	///
+	/// Скрывает одноимённый метод PaperFormatData намеренно: базовый
+	/// присваивает только поля формата, а страница вдобавок пересчитывает
+	/// производные величины. Переопределить нельзя — базовый не виртуальный.
+	/// </summary>
+	public new void SetFormatData(PaperFormatData format_data)
 	{
 		paper_format = format_data.paper_format;
 		uom = format_data.uom;

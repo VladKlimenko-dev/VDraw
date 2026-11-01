@@ -527,13 +527,13 @@ public sealed class SkDropDownBox : SkControl
 			// Обрезка: длинное название шрифта не должно заезжать на стрелку.
 			canvas.Save();
 			canvas.ClipRect(new SKRect(r.Left + 4f, r.Top, r.Right - 20f, r.Bottom));
-			canvas.DrawText(text, left, r.MidY + 4.5f, itemFont, textPaint);
+			canvas.DrawText(text, left, r.MidY + 4.5f, SKTextAlign.Left, itemFont, textPaint);
 			canvas.Restore();
 		}
 
 		// Стрелка рисуется всегда, а не только при непустом тексте: иначе
 		// пустой элемент выглядел как неактивный контрол.
-		canvas.DrawText(IsOpen ? "▲" : "▼", r.Right - 16f, r.MidY + 4.5f, arrowFont, mutedPaint);
+		canvas.DrawText(IsOpen ? "▲" : "▼", r.Right - 16f, r.MidY + 4.5f, SKTextAlign.Left, arrowFont, mutedPaint);
 	}
 
 	public override void DrawOverlay(SKCanvas canvas)
@@ -587,7 +587,7 @@ public sealed class SkDropDownBox : SkControl
 			if (!string.IsNullOrWhiteSpace(_items[i].Text))
 			{
 				var itemFont = ResolveItemFont(_items[i], uiFont, 13f);
-				canvas.DrawText(_items[i].Text, left, itemRect.MidY + 4.5f, itemFont, textPaint);
+				canvas.DrawText(_items[i].Text, left, itemRect.MidY + 4.5f, SKTextAlign.Left, itemFont, textPaint);
 			}
 		}
 
@@ -791,7 +791,15 @@ public sealed class SkDropDownBox : SkControl
 		return IsOpen && GetDropDownRect().Contains(p);
 	}
 
-	public bool CloseDropDownsOutside(SKPoint p)
+	/// <summary>
+	/// Закрывает список при щелчке мимо него.
+	///
+	/// Именно override, а не новый метод: базовый SkControl объявляет его
+	/// виртуальным и вызывает по дереву контролов. Без ключевого слова
+	/// вызов доходил только до базовой реализации, и список оставался
+	/// раскрытым при щелчке в стороне.
+	/// </summary>
+	public override bool CloseDropDownsOutside(SKPoint p)
 	{
 		if (!IsOpen)
 			return false;
@@ -1434,7 +1442,13 @@ public sealed class SkPictureButton : SkControl
 				r.Right - pad,
 				r.Bottom - pad);
 
-			canvas.DrawBitmap(Image, imgRect);
+			// Сглаживание задаётся явно: перегрузка без него объявлена
+			// устаревшей, а значок на кнопке уменьшается и без фильтрации
+			// выглядел бы рваным.
+			canvas.DrawBitmap(
+				Image,
+				imgRect,
+				new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.None));
 		}
 	}
 

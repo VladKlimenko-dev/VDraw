@@ -2080,12 +2080,6 @@ namespace VDraw
 		private ToolStripMenuItem menu_obj_image;
 		private ToolStripMenuItem menu_obj_rounded_rect;
 		private Button s_cursor_but;
-		private Button s_copy_but;
-		private Button s_paste_but;
-		private Button s_format_but;
-		private Button s_undo_but;
-		private Button s_redo_but;
-		private Button s_delete_but;
 		private Button s_group_but;
 		private Button s_ungroup_but;
 		private Button s_bring_to_front_but;
@@ -2134,7 +2128,6 @@ namespace VDraw
 		private Button redo_but;
 		private Button format_but;
 		private ComboBox page_paper_size_combo;
-		private FlowLayoutPanel flowLayoutPanel4;
 		private NumericUpDown page_size_w_nud;
 		private Label label1;
 		private NumericUpDown page_size_h_nud;
@@ -2164,7 +2157,6 @@ namespace VDraw
 		private Button node_delete_but;
 		private Button s_convert_to_curve_but;
 		private Button s_curve_edit_but;
-		private FlowLayoutPanel flowLayoutPanel8;
 		private FlowLayoutPanel page_lock_ratio_flow;
 		private Button page_lock_ratio_but;
 		private Button s_combine_but;
@@ -2203,7 +2195,6 @@ namespace VDraw
 		private Panel shapes_tools_panel;
 		private Panel image_tools_panel;
 		private Panel page_tools_panel;
-		private FlowLayoutPanel v_scale_flow;
 		private ComboBox v_scale_combo;
 		private Button v_scale_selected_but;
 		private Button flip_horizontal_but;
@@ -2230,7 +2221,6 @@ namespace VDraw
 		private ToolStripMenuItem menu_about;
 		private ToolStripMenuItem menu_manual;
 		private ToolStripSeparator toolStripMenuItem1;
-		private ToolStripMenuItem settingsToolStripMenuItem;
 		private ToolStripSeparator toolStripMenuItem2;
 		private ToolStripMenuItem menu_settings;
 		private ToolStripMenuItem convertToBitmapToolStripMenuItem;

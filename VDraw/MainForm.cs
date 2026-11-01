@@ -2211,20 +2211,6 @@ public partial class MainForm : Form
 			ImageScalingSize = new Size(48, 48)
 		};
 
-		ToolStripMenuItem CreateItem(string text, System.Drawing.Image image, ShapeToolKind kind, Action<ShapeToolKind, System.Drawing.Image> onSelect)
-		{
-			var item = new ToolStripMenuItem(text, image, (_, __) => onSelect(kind, image))
-			{
-				Tag = kind,
-				AutoSize = false,
-				Height = 48,
-				DisplayStyle = ToolStripItemDisplayStyle.ImageAndText,
-				ImageScaling = ToolStripItemImageScaling.None
-			};
-
-			return item;
-		}
-
 		void SelectRectangle(ShapeToolKind kind, System.Drawing.Image image)
 		{
 			_selectedRectangleTool = kind;
