@@ -150,12 +150,52 @@ public partial class MainForm : Form
 		InitThemeToggleButton();
 		InitSelectionFilterButton();
 
+		// После заполнения списков и до перекраски: представление снимает
+		// с модели и значение, и состав списка, а красить спрятанную
+		// модель уже незачем.
+		ReplaceToolbarControls();
+
 		WinFormsTheme.Register(this);
 		ThemeImages.RegisterMainFormImages(this);
 
 		// Кнопки-списки держат значок выбранного варианта и в таблицу
 		// ThemeImages не укладываются — их обновляем отдельно.
 		SkUiTheme.ThemeChanged += RefreshSplitButtonIcons;
+	}
+
+	/// <summary>
+	/// Меняет стандартные списки, счётчики и флажки на полосах
+	/// инструментов на контролы Avalonia.
+	///
+	/// Перечислены поимённо, а не собраны обходом формы: на форме есть
+	/// и другие стандартные контролы — поле имени страницы, полосы
+	/// прокрутки холста, — которым подмена не нужна и которым она
+	/// только помешала бы.
+	///
+	/// См. AvToolbarSwap: сами контролы остаются на месте как модель,
+	/// меняется только то, что видно.
+	/// </summary>
+	private void ReplaceToolbarControls()
+	{
+		Ui.Avalon.AvToolbarSwap.ReplaceAll(new Control[]
+		{
+			page_paper_size_combo,
+			page_uom_combo,
+			v_scale_combo,
+			i_tool_shape_combo,
+
+			page_size_w_nud,
+			page_size_h_nud,
+			page_zero_x_nud,
+			page_zero_y_nud,
+			i_tool_size_nud,
+			i_tool_tolerance_nud,
+			i_tool_strength_nud,
+			i_tool_smooth_nud,
+
+			i_size_lock_check,
+			i_actual_resolution_check
+		});
 	}
 
 	protected void SetIcons()
