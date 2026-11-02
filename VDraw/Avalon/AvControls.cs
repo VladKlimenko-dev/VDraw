@@ -1148,6 +1148,11 @@ public sealed class AvNumericUpDown : Border
 			BorderThickness = new Thickness(0),
 			Height = double.NaN,
 			MinHeight = 0,
+
+			// Своя нижняя граница ширины снимается: у поля ввода она
+			// задана оформлением и шире, чем счётчики на полосе
+			// инструментов, — поле вылезало бы за край контрола.
+			MinWidth = 0,
 			Padding = new Thickness(6, 0, 2, 0),
 			VerticalAlignment = VerticalAlignment.Stretch
 		};
@@ -1265,6 +1270,18 @@ public sealed class AvNumericUpDown : Border
 		try
 		{
 			_box.Text = Format(Value);
+
+			// Каретка возвращается в начало.
+			//
+			// Поле прокручивается за кареткой, а она после присваивания
+			// текста встаёт в конец. В узком поле — а на полосе
+			// инструментов они узкие — начало строки уезжало влево
+			// за край, и «0.13» показывалось как «.13». Пользователь
+			// в это время в поле не стоит: правка идёт другим путём,
+			// через CommitEditing.
+			_box.CaretIndex = 0;
+			_box.SelectionStart = 0;
+			_box.SelectionEnd = 0;
 		}
 		finally
 		{

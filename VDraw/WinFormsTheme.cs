@@ -51,6 +51,8 @@ public static class WinFormsTheme
 	{
 		foreach (var form in _forms.ToList())
 			Apply(form);
+
+		ApplyToStrips();
 	}
 
 	#region Обход дерева
@@ -99,19 +101,64 @@ public static class WinFormsTheme
 			&& control is not Form;
 
 	/// <summary>
-	/// Красит полосу или меню, созданные в коде.
+	/// Полосы и меню, созданные в коде. Слабые ссылки: меню живёт
+	/// столько же, сколько форма, и держать его здесь намертво значило бы
+	/// не дать закрытой форме освободиться.
+	/// </summary>
+	private static readonly List<WeakReference<ToolStrip>> _strips = new();
+
+	/// <summary>
+	/// Красит полосу или меню, созданные в коде, и запоминает их.
 	///
 	/// Обход дерева их не достаёт: контекстное меню не лежит в Controls
-	/// формы. Поэтому его нужно позвать вручную — при создании меню
-	/// и при каждой смене темы.
+	/// формы, и смена темы проходила мимо — меню оставалось в цветах той
+	/// темы, что была при его создании. Поэтому полоса не просто красится,
+	/// а берётся на учёт: при каждой смене темы её перекрасят вместе
+	/// с формами.
 	/// </summary>
 	public static void ApplyToolStrip(ToolStrip strip)
+	{
+		if (strip == null)
+			return;
+
+		bool known = false;
+
+		for (int i = _strips.Count - 1; i >= 0; i--)
+		{
+			if (!_strips[i].TryGetTarget(out var tracked))
+			{
+				_strips.RemoveAt(i);
+				continue;
+			}
+
+			if (ReferenceEquals(tracked, strip))
+				known = true;
+		}
+
+		if (!known)
+			_strips.Add(new WeakReference<ToolStrip>(strip));
+
+		ApplyToolStripCore(strip);
+	}
+
+	private static void ApplyToolStripCore(ToolStrip strip)
 	{
 		var pal = SkUiTheme.Current;
 
 		strip.Renderer = new ThemedToolStripRenderer(pal);
 		strip.BackColor = ToColor(pal.PanelBack);
 		strip.ForeColor = ToColor(pal.Text);
+	}
+
+	private static void ApplyToStrips()
+	{
+		for (int i = _strips.Count - 1; i >= 0; i--)
+		{
+			if (_strips[i].TryGetTarget(out var strip))
+				ApplyToolStripCore(strip);
+			else
+				_strips.RemoveAt(i);
+		}
 	}
 
 	private static void ApplyToOne(Control control, SkUiPalette pal)
@@ -499,6 +546,50 @@ internal sealed class ThemedToolStripRenderer : ToolStripProfessionalRenderer
 	{
 		e.ArrowColor = WinFormsTheme.ToColor(_pal.Text);
 		base.OnRenderArrow(e);
+	}
+
+	/// <summary>
+	/// Галочка отмеченного пункта.
+	///
+	/// Своя отрисовка, потому что штатная рисует галочку системным цветом
+	/// по системной подложке: в тёмном меню получалась тёмная галочка
+	/// на светлом квадрате или, при другой теме Windows, не видно было
+	/// ни того, ни другого. Пункт с отметкой — это вся суть меню отбора
+	/// объектов, и догадываться о ней по памяти пользователь не должен.
+	/// </summary>
+	protected override void OnRenderItemCheck(ToolStripItemImageRenderEventArgs e)
+	{
+		var rect = e.ImageRectangle;
+
+		if (rect.Width <= 0 || rect.Height <= 0)
+			return;
+
+		var g = e.Graphics;
+
+		using var back = new SolidBrush(WinFormsTheme.ToColor(_pal.Selected));
+		using var pen = new Pen(WinFormsTheme.ToColor(_pal.Text), 2f);
+
+		g.FillRectangle(back, rect);
+
+		var old = g.SmoothingMode;
+
+		g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+
+		// Галочка двумя отрезками по долям прямоугольника: так она
+		// остаётся соразмерной при любом размере поля значка.
+		float x = rect.X;
+		float y = rect.Y;
+		float w = rect.Width;
+		float h = rect.Height;
+
+		g.DrawLines(pen, new[]
+		{
+			new PointF(x + w * 0.24f, y + h * 0.52f),
+			new PointF(x + w * 0.44f, y + h * 0.72f),
+			new PointF(x + w * 0.78f, y + h * 0.28f)
+		});
+
+		g.SmoothingMode = old;
 	}
 }
 

@@ -1,8 +1,4 @@
-﻿using Avalonia.Layout;
-
-using SkiaSharp;
-
-using VDraw.Ui;
+﻿using VDraw.Ui;
 
 using Control = System.Windows.Forms.Control;
 using HorizontalAlignment = Avalonia.Layout.HorizontalAlignment;
@@ -75,28 +71,14 @@ public static class AvToolbarSwap
 
 	private static void Replace(ComboBox source)
 	{
-		var view = new AvDropDownBox
-		{
-			ItemHeight = 26f,
-			DropDownMaxHeight = 320f,
-			HorizontalAlignment = HorizontalAlignment.Stretch,
-			VerticalAlignment = VerticalAlignment.Center
-		};
-
+		AvDropDownBox? view = null;
 		bool syncing = false;
 
-		void PullItems()
+		void Pull()
 		{
-			var items = new List<string>(source.Items.Count);
+			if (view == null)
+				return;
 
-			foreach (object? item in source.Items)
-				items.Add(item?.ToString() ?? string.Empty);
-
-			view.SetItems(items);
-		}
-
-		void PullSelection()
-		{
 			syncing = true;
 
 			try
@@ -105,9 +87,14 @@ public static class AvToolbarSwap
 				// меняется из кода (форматы листа, единицы), а события
 				// об этом ComboBox не поднимает, и привязаться больше
 				// не к чему.
-				PullItems();
+				var items = new List<string>(source.Items.Count);
 
+				foreach (object? item in source.Items)
+					items.Add(item?.ToString() ?? string.Empty);
+
+				view.SetItems(items);
 				view.SetSelected(source.SelectedItem?.ToString() ?? string.Empty);
+				view.Enabled = source.Enabled;
 			}
 			finally
 			{
@@ -115,19 +102,35 @@ public static class AvToolbarSwap
 			}
 		}
 
-		view.SelectedIndexChanged += (index, _) =>
+		global::Avalonia.Controls.Control Create()
 		{
-			if (syncing || index < 0 || index >= source.Items.Count)
-				return;
+			var created = new AvDropDownBox
+			{
+				ItemHeight = 26f,
+				DropDownMaxHeight = 320f,
+				HorizontalAlignment = HorizontalAlignment.Stretch,
+				VerticalAlignment = VerticalAlignment.Center
+			};
 
-			source.SelectedIndex = index;
-		};
+			created.SelectedIndexChanged += (index, _) =>
+			{
+				if (syncing || index < 0 || index >= source.Items.Count)
+					return;
 
-		source.SelectedIndexChanged += (_, _) => PullSelection();
+				source.SelectedIndex = index;
+			};
 
-		PullSelection();
+			view = created;
 
-		Mount(source, view, () => view.Enabled = source.Enabled);
+			Pull();
+
+			return created;
+		}
+
+		source.SelectedIndexChanged += (_, _) => Pull();
+		source.EnabledChanged += (_, _) => Pull();
+
+		Mount(source, Create);
 	}
 
 	#endregion
@@ -136,22 +139,14 @@ public static class AvToolbarSwap
 
 	private static void Replace(NumericUpDown source)
 	{
-		var view = new AvNumericUpDown
-		{
-			Minimum = (float)source.Minimum,
-			Maximum = (float)source.Maximum,
-			Increment = (float)source.Increment,
-			Decimals = source.DecimalPlaces,
-			AllowNegative = source.Minimum < 0,
-			AllowDecimal = source.DecimalPlaces > 0,
-			HorizontalAlignment = HorizontalAlignment.Stretch,
-			VerticalAlignment = VerticalAlignment.Center
-		};
-
+		AvNumericUpDown? view = null;
 		bool syncing = false;
 
 		void Pull()
 		{
+			if (view == null)
+				return;
+
 			syncing = true;
 
 			try
@@ -163,8 +158,10 @@ public static class AvToolbarSwap
 				view.Increment = (float)source.Increment;
 				view.Decimals = source.DecimalPlaces;
 				view.AllowNegative = source.Minimum < 0;
+				view.AllowDecimal = source.DecimalPlaces > 0;
 
 				view.SetValue((float)source.Value);
+				view.Enabled = source.Enabled;
 			}
 			finally
 			{
@@ -172,26 +169,40 @@ public static class AvToolbarSwap
 			}
 		}
 
-		view.ValueChanged += value =>
+		global::Avalonia.Controls.Control Create()
 		{
-			if (syncing)
-				return;
+			var created = new AvNumericUpDown
+			{
+				HorizontalAlignment = HorizontalAlignment.Stretch,
+				VerticalAlignment = VerticalAlignment.Center
+			};
 
-			decimal clamped = Math.Clamp((decimal)value, source.Minimum, source.Maximum);
+			created.ValueChanged += value =>
+			{
+				if (syncing)
+					return;
 
-			// Сравнение перед записью: присваивание того же значения
-			// подняло бы ValueChanged и вернулось бы сюда через Pull,
-			// а обработчики формы делают по этому событию настоящую
-			// работу — перестраивают лист.
-			if (source.Value != clamped)
-				source.Value = clamped;
-		};
+				decimal clamped = Math.Clamp((decimal)value, source.Minimum, source.Maximum);
+
+				// Сравнение перед записью: присваивание того же значения
+				// подняло бы ValueChanged и вернулось бы сюда через Pull,
+				// а обработчики формы делают по этому событию настоящую
+				// работу — перестраивают лист.
+				if (source.Value != clamped)
+					source.Value = clamped;
+			};
+
+			view = created;
+
+			Pull();
+
+			return created;
+		}
 
 		source.ValueChanged += (_, _) => Pull();
+		source.EnabledChanged += (_, _) => Pull();
 
-		Pull();
-
-		Mount(source, view, () => view.Enabled = source.Enabled);
+		Mount(source, Create);
 	}
 
 	#endregion
@@ -200,41 +211,56 @@ public static class AvToolbarSwap
 
 	private static void Replace(CheckBox source)
 	{
-		var view = new AvCheckBox
-		{
-			Text = source.Text,
-			Checked = source.Checked,
-			HorizontalAlignment = HorizontalAlignment.Left,
-			VerticalAlignment = VerticalAlignment.Center
-		};
-
+		AvCheckBox? view = null;
 		bool syncing = false;
 
-		view.CheckedChanged += value =>
+		void Pull()
 		{
-			if (syncing)
+			if (view == null)
 				return;
 
-			source.Checked = value;
-		};
-
-		source.CheckedChanged += (_, _) =>
-		{
 			syncing = true;
 
 			try
 			{
+				view.Text = source.Text;
 				view.Checked = source.Checked;
+				view.Enabled = source.Enabled;
 			}
 			finally
 			{
 				syncing = false;
 			}
-		};
+		}
 
-		source.TextChanged += (_, _) => view.Text = source.Text;
+		global::Avalonia.Controls.Control Create()
+		{
+			var created = new AvCheckBox
+			{
+				HorizontalAlignment = HorizontalAlignment.Left,
+				VerticalAlignment = VerticalAlignment.Center
+			};
 
-		Mount(source, view, () => view.Enabled = source.Enabled);
+			created.CheckedChanged += value =>
+			{
+				if (syncing)
+					return;
+
+				source.Checked = value;
+			};
+
+			view = created;
+
+			Pull();
+
+			return created;
+		}
+
+		source.CheckedChanged += (_, _) => Pull();
+		source.EnabledChanged += (_, _) => Pull();
+		source.TextChanged += (_, _) => Pull();
+
+		Mount(source, Create);
 	}
 
 	#endregion
@@ -245,14 +271,17 @@ public static class AvToolbarSwap
 	/// Ставит представление на место модели и прячет её.
 	///
 	/// Место занимается тем же индексом в коллекции родителя: полосы
-	/// инструментов — это FlowLayoutPanel, и порядок детей там
-	/// определяет порядок на экране. Спрятанная модель из раскладки
-	/// выпадает, так что ряд не разъезжается.
+	/// инструментов — это FlowLayoutPanel, и порядок детей там определяет
+	/// порядок на экране. Спрятанная модель из раскладки выпадает, так что
+	/// ряд не разъезжается.
+	///
+	/// Представление пересоздаётся при каждой смене темы. Кисти Avalonia
+	/// читаются в момент создания контрола (см. AvTheme) — панель свойств
+	/// по той же причине пересобирается целиком. Контрол, созданный один
+	/// раз, остался бы в цветах темы, которая была при запуске: в светлой
+	/// теме поля ввода так и стояли чёрными.
 	/// </summary>
-	private static void Mount(
-		Control source,
-		global::Avalonia.Controls.Control view,
-		Action applyEnabled)
+	private static void Mount(Control source, Func<global::Avalonia.Controls.Control> create)
 	{
 		var parent = source.Parent;
 
@@ -263,18 +292,13 @@ public static class AvToolbarSwap
 
 		var host = new global::Avalonia.Win32.Interoperability.WinFormsAvaloniaControlHost
 		{
-			Content = view,
+			Content = Wrap(create()),
 			Location = source.Location,
 			Size = source.Size,
 			Margin = source.Margin,
 			Anchor = source.Anchor,
-			TabStop = false,
-			BackColor = ToColor(SkUiTheme.Current.PanelBack)
+			TabStop = false
 		};
-
-		applyEnabled();
-
-		source.EnabledChanged += (_, _) => applyEnabled();
 
 		// Размер модели всё ещё ведущий: его задаёт дизайнер, и полоса
 		// при смене разрешения экрана пересчитывает его сама.
@@ -285,11 +309,24 @@ public static class AvToolbarSwap
 		parent.Controls.Add(host);
 		parent.Controls.SetChildIndex(host, index);
 
-		SkUiTheme.ThemeChanged += () => host.BackColor = ToColor(SkUiTheme.Current.PanelBack);
+		SkUiTheme.ThemeChanged += () => host.Content = Wrap(create());
 	}
 
-	private static Color ToColor(SKColor c)
-		=> Color.FromArgb(c.Alpha, c.Red, c.Green, c.Blue);
+	/// <summary>
+	/// Подкладывает под контрол фон темы.
+	///
+	/// Без подложки видно фон окна Avalonia, а он берётся у темы Fluent
+	/// по варианту оформления: белый в светлой, почти чёрный в тёмной.
+	/// На полосе инструментов это читалось как прямоугольник чужого
+	/// цвета вокруг флажка.
+	/// </summary>
+	private static global::Avalonia.Controls.Control Wrap(global::Avalonia.Controls.Control view)
+		=> new global::Avalonia.Controls.Border
+		{
+			Background = AvTheme.PanelBack,
+			Child = view
+		};
+
 
 	#endregion
 }

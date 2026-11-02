@@ -78,7 +78,10 @@ public partial class MainForm
 
 	private void BuildSelectionFilterMenu()
 	{
-		_selFilterMenu = new ContextMenuStrip { ShowImageMargin = false };
+		// Поле значка оставлено включённым: именно в нём рисуется галочка
+		// отмеченного пункта, а без поля WinForms её не рисует вовсе —
+		// меню отбора выглядело так, будто ничего не выбрано.
+		_selFilterMenu = new ContextMenuStrip { ShowImageMargin = true };
 
 		WinFormsTheme.ApplyToolStrip(_selFilterMenu);
 
