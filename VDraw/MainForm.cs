@@ -808,6 +808,12 @@ public partial class MainForm : Form
 	/// </summary>
 	private bool IsTextEntryFocused()
 	{
+		// Правка надписи прямо на листе — такой же набор текста, как
+		// в поле ввода: буква должна попадать в надпись, а не включать
+		// инструмент, у которого эта буква в сочетании.
+		if (_mainView != null && _mainView.IsTextEditing)
+			return true;
+
 		Control? focused = this;
 
 		while (focused is ContainerControl container && container.ActiveControl != null)

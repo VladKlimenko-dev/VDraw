@@ -376,6 +376,18 @@ public sealed partial class MainView : SKGLControl
 
 	internal void RaiseSelectionChanged()
 	{
+		// Правка надписи кончается вместе с её выделением.
+		//
+		// Это же закрывает случай, когда надпись удалили: удаление
+		// снимает выделение, и сеанс не остаётся с фигурой, которой
+		// на листе уже нет.
+		if (_textEdit != null
+			&& (_interaction.Selection.Count != 1
+				|| !ReferenceEquals(_interaction.Selection[0], _textEdit.Shape)))
+		{
+			EndTextEdit();
+		}
+
 		SelectionChanged?.Invoke(this, EventArgs.Empty);
 	}
 
@@ -419,6 +431,12 @@ public sealed partial class MainView : SKGLControl
 
 	public void SetMode(EditorMode mode)
 	{
+		// Смена режима заканчивает правку надписи: в режиме узлов
+		// или изображения каретке места нет, а набранное должно попасть
+		// в историю прежде, чем начнётся что-то другое.
+		if (mode != EditorMode.Text)
+			EndTextEdit();
+
 		if (MainForm.Mode == mode)
 		{
 			mainForm.SetEditorMode(mode);
@@ -660,6 +678,9 @@ public sealed partial class MainView : SKGLControl
 
 	public void SetTool(ShapeToolKind toolKind)
 	{
+		// Выбран инструмент — значит, с набором текста закончили.
+		EndTextEdit();
+
 		if (!_tools.TryGetValue(toolKind, out var tool))
 			throw new InvalidOperationException($"Tool '{toolKind}' is not registered.");
 
@@ -830,6 +851,8 @@ public sealed partial class MainView : SKGLControl
 
 	public void SetPage(Page page)
 	{
+		EndTextEdit();
+
 		if (MainForm.cur_doc != null)
 		{
 			MainForm.cur_doc.ActivePage = page;
@@ -2033,6 +2056,8 @@ public sealed partial class MainView : SKGLControl
 
 		HoveredNodeAdorner.Draw(canvas, this, _interaction);
 		SnapAdorner.Draw(canvas, this, _interaction);
+
+		DrawTextEdit(canvas);
 	}
 
 	/// <summary>
@@ -2107,6 +2132,11 @@ public sealed partial class MainView : SKGLControl
 		UpdateModifierKeys();
 
 		if (CurrentPage == null)
+			return;
+
+		// Правка надписи разбирает нажатие первой: пока она идёт, щелчок
+		// внутри надписи ставит каретку, а не выделяет фигуру.
+		if (TextEditMouseDown(e, ScreenToPage(e.Location)))
 			return;
 
 		bool secondClickOfDoubleClick = IsSecondClickOfDoubleClick(e);
@@ -2418,6 +2448,10 @@ public sealed partial class MainView : SKGLControl
 		_interaction.LastPage = _interaction.CurrentPage;
 		_interaction.CurrentPage = world;
 
+		// Протяжка по тексту растит выделение и ничего больше не трогает.
+		if (TextEditMouseMove(world))
+			return;
+
 		bool needHitTest =
 			!_panning &&
 			!_draggingPageOrigin &&
@@ -2557,6 +2591,9 @@ public sealed partial class MainView : SKGLControl
 			return;
 
 		UpdateModifierKeys();
+
+		if (TextEditMouseUp())
+			return;
 
 		var world = ScreenToPage(e.Location);
 
@@ -2828,7 +2865,27 @@ public sealed partial class MainView : SKGLControl
 			return;
 
 		var world = ScreenToPage(e.Location);
+
+		// Второй двойной щелчок по уже правящейся надписи выделяет слово.
+		if (TextEditDoubleClick(world))
+			return;
+
 		var hit = HitTester.HitTest(this, _interaction, world);
+
+		// Надпись проверяется раньше кривой: TextShape от неё наследуется,
+		// и без этой ветки двойной щелчок по тексту уводил бы в правку
+		// узлов вместо набора.
+		if (hit.Kind == HitKind.ShapeBody && hit.Shape is TextShape textShape
+			&& TextEditSession.CanEdit(textShape))
+		{
+			var selectedBefore = _interaction.Selection.ToList();
+
+			SelectionHelper.SetSingle(_interaction, textShape);
+			NotifySelectionIfChanged(selectedBefore);
+
+			BeginTextEdit(textShape, world);
+			return;
+		}
 
 		if (hit.Kind == HitKind.ShapeBody && hit.Shape is ImageShape)
 		{
@@ -2899,7 +2956,33 @@ public sealed partial class MainView : SKGLControl
 		if (keyData == Keys.Escape)
 			return true;
 
+		// Во время правки надписи стрелки и Tab нужны самому холсту.
+		// Без этого окно считает их клавишами перехода по контролам
+		// и до OnKeyDown они не доходят.
+		if (IsTextEditing)
+		{
+			switch (keyData & Keys.KeyCode)
+			{
+				case Keys.Left:
+				case Keys.Right:
+				case Keys.Up:
+				case Keys.Down:
+				case Keys.Home:
+				case Keys.End:
+				case Keys.Tab:
+				case Keys.Enter:
+					return true;
+			}
+		}
+
 		return base.IsInputKey(keyData);
+	}
+
+	protected override void OnKeyPress(KeyPressEventArgs e)
+	{
+		base.OnKeyPress(e);
+
+		TextEditKeyPress(e);
 	}
 
 	private void ResetPendingInteractionState()
@@ -2936,6 +3019,18 @@ public sealed partial class MainView : SKGLControl
 			return;
 
 		UpdateModifierKeys();
+
+		// Пока правят надпись, клавиатура принадлежит тексту целиком.
+		//
+		// Выход здесь безусловный, даже когда клавиша тексту не нужна:
+		// ниже по методу буквы разбирают инструменты, и набранное «L»
+		// переключало бы инструмент вместо того, чтобы встать в строку.
+		if (IsTextEditing)
+		{
+			TextEditKeyDown(e);
+
+			return;
+		}
 
 		switch (e.KeyCode)
 		{

@@ -53,6 +53,15 @@ public sealed partial class TextShape : Shape
 		Stroke.Thickness = Settings.MmToCurrentUom(0.2f);
 	}
 
+	/// <summary>
+	/// Шрифт надписи для расчётов снаружи — правке текста на листе нужно
+	/// мерить те же продвижения, какими текст и рисуется.
+	/// </summary>
+	internal SKFont CreateEditFont() => CreateLocalFont();
+
+	/// <summary>Шаг между базовыми линиями соседних строк.</summary>
+	internal float EditLineStep => FontSizeMm * 1.2f + LineSpacingMm;
+
 	private SKFont CreateLocalFont()
 	{
 		var typeface = SKTypeface.FromFamilyName(
@@ -2681,7 +2690,7 @@ public static class TextGlyphs
 
 	/// <summary>
 	/// Продвижение одного символа с учётом межсимвольного интервала.
-	/// Табуляция не имеет глифа, но имеет ширину.Toyota 383, Mitsubisy 115
+	/// Табуляция не имеет глифа, но имеет ширину.
 	/// </summary>
 	public static float GetCharAdvance(SKFont font, char ch, float characterSpacing)
 	{
