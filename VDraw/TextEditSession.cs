@@ -30,7 +30,16 @@ public sealed class TextEditSession
 	public TextShape Shape { get; }
 
 	/// <summary>Текст, каким он был до начала правки. Нужен шагу истории.</summary>
-	public string TextBefore { get; }
+	public string TextBefore { get; private set; }
+
+	/// <summary>
+	/// Текст, каким его оставил сам сеанс.
+	///
+	/// По нему видно, что надпись правили мимо сеанса — из поля в панели
+	/// свойств или откатом истории. Своя правка всегда идёт через сеттер
+	/// Text, и он это значение обновляет.
+	/// </summary>
+	private string _lastSeen;
 
 	/// <summary>Положение каретки: число символов слева от неё.</summary>
 	public int Caret { get; private set; }
@@ -69,7 +78,12 @@ public sealed class TextEditSession
 	public string Text
 	{
 		get => Shape.Text ?? string.Empty;
-		private set => Shape.Text = value;
+
+		private set
+		{
+			Shape.Text = value;
+			_lastSeen = value;
+		}
 	}
 
 	private SKFont? _font;
@@ -136,8 +150,41 @@ public sealed class TextEditSession
 			shape.Text = normalized;
 
 		TextBefore = normalized;
+		_lastSeen = normalized;
 		Caret = normalized.Length;
 		Anchor = Caret;
+	}
+
+	/// <summary>
+	/// Замечает правку надписи мимо сеанса и подстраивается под неё.
+	/// true — текст сменился со стороны.
+	///
+	/// Так бывает, когда ту же надпись правят в поле панели свойств,
+	/// не выходя из набора на листе. Сеанс в этом случае не спорит:
+	/// каретка поджимается к новой длине, а его собственная отмена
+	/// очищается — её снимки относятся к тексту, которого больше нет.
+	///
+	/// Заодно сдвигается и точка отсчёта общего шага истории: панель
+	/// свою правку уже записала, и записывать её второй раз, поверх,
+	/// значило бы при отмене возвращать текст на два шага назад.
+	/// </summary>
+	public bool NoticeExternalEdit()
+	{
+		string current = Text;
+
+		if (string.Equals(current, _lastSeen, StringComparison.Ordinal))
+			return false;
+
+		_lastSeen = current;
+		TextBefore = current;
+
+		Caret = Math.Clamp(Caret, 0, current.Length);
+		Anchor = Math.Clamp(Anchor, 0, current.Length);
+
+		_undo.Clear();
+		_redo.Clear();
+
+		return true;
 	}
 
 	#region Правка

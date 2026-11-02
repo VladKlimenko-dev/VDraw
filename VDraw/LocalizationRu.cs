@@ -775,6 +775,7 @@ internal static class LocalizationRu
 			"Вопросы и предложения по улучшению можно присылать "
 			+ "на адрес: {0}",
 
+		["Cut"] = "Вырезать",
 		["Color picker"] = "Выбор цвета",
 		["Add"] = "Добавить",
 		["Create new document"] = "Создать документ",

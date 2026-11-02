@@ -2595,7 +2595,7 @@ public sealed partial class MainView : SKGLControl
 
 		UpdateModifierKeys();
 
-		if (TextEditMouseUp())
+		if (TextEditMouseUp(e))
 			return;
 
 		var world = ScreenToPage(e.Location);
@@ -3547,6 +3547,9 @@ public sealed partial class MainView : SKGLControl
 				_caretTimer.Dispose();
 				_caretTimer = null;
 			}
+
+			_textMenu?.Dispose();
+			_textMenu = null;
 
 			imageEditTool = null;
 

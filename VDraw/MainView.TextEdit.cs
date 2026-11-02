@@ -254,6 +254,8 @@ public sealed partial class MainView
 		if (session == null)
 			return;
 
+		session.NoticeExternalEdit();
+
 		session.SetCaret(TextEditGeometry.IndexAt(session, world), extend);
 
 		TouchCaret();
@@ -269,16 +271,28 @@ public sealed partial class MainView
 		if (_textEdit == null)
 			return false;
 
-		if (e.Button != MouseButtons.Left)
+		if (e.Button == MouseButtons.Right)
 		{
 			// Правая кнопка мимо надписи заканчивает правку: иначе
 			// контекстное меню фигуры открывалось бы поверх каретки,
 			// а сеанс продолжал бы считать себя главным по клавиатуре.
 			if (!HitsEditedText(world))
+			{
 				EndTextEdit();
 
-			return false;
+				return false;
+			}
+
+			// Своё меню открывается на отпускании, как и меню фигуры:
+			// на нажатии оно перехватывало бы отпускание себе, и сеанс
+			// оставался бы думать, что кнопку всё ещё держат.
+			_textMenuPending = true;
+
+			return true;
 		}
+
+		if (e.Button != MouseButtons.Left)
+			return false;
 
 		if (!HitsEditedText(world))
 		{
@@ -318,8 +332,20 @@ public sealed partial class MainView
 		return true;
 	}
 
-	private bool TextEditMouseUp()
+	private bool TextEditMouseUp(MouseEventArgs e)
 	{
+		if (_textMenuPending && e.Button == MouseButtons.Right)
+		{
+			_textMenuPending = false;
+
+			if (_textEdit != null)
+			{
+				ShowTextEditMenu(e.Location);
+
+				return true;
+			}
+		}
+
 		if (_textEdit is not { Dragging: true })
 			return false;
 
@@ -349,6 +375,93 @@ public sealed partial class MainView
 		return true;
 	}
 
+	/// <summary>Правая кнопка нажата внутри надписи, ждём отпускания.</summary>
+	private bool _textMenuPending;
+
+	private ContextMenuStrip? _textMenu;
+
+	/// <summary>
+	/// Своё контекстное меню на время правки.
+	///
+	/// Меню фигуры здесь не годится: в нём порядок, группировка
+	/// и преобразование в кривые — действия над объектом, а правят
+	/// сейчас текст внутри него. Набор пунктов тот же, что у любого
+	/// текстового поля, и собирается заново на каждый показ: доступность
+	/// пунктов зависит от того, есть ли выделение и лежит ли что-нибудь
+	/// в буфере обмена.
+	/// </summary>
+	private void ShowTextEditMenu(Point screen)
+	{
+		var session = _textEdit;
+
+		if (session == null)
+			return;
+
+		session.NoticeExternalEdit();
+
+		_textMenu?.Dispose();
+
+		// Через локальную переменную: поле объявлено необязательным,
+		// и обращение к нему из вложенного Add компилятор считал бы
+		// обращением к возможному null.
+		var menu = new ContextMenuStrip();
+
+		_textMenu = menu;
+
+		WinFormsTheme.ApplyToolStrip(menu);
+
+		bool hasSelection = session.HasSelection;
+		bool hasClipboardText;
+
+		try
+		{
+			hasClipboardText = Clipboard.ContainsText();
+		}
+		catch (ExternalException)
+		{
+			// Буфером владеет другая программа. Пункт вставки останется
+			// доступным: хуже неудачной вставки только пункт, который
+			// без причины погас.
+			hasClipboardText = true;
+		}
+
+		Add(L.T("Cut"), hasSelection, () =>
+		{
+			CopySelectedText(session);
+			session.DeleteSelection();
+			TextChangedDuringEdit();
+		});
+
+		Add(L.T("Copy"), hasSelection, () => CopySelectedText(session));
+
+		Add(L.T("Paste"), hasClipboardText, () => PasteIntoText(session));
+
+		Add(L.T("Delete"), hasSelection, () =>
+		{
+			session.DeleteSelection();
+			TextChangedDuringEdit();
+		});
+
+		menu.Items.Add(new ToolStripSeparator());
+
+		Add(L.T("Select all"), session.Text.Length > 0, session.SelectAll);
+
+		menu.Show(this, screen);
+
+		void Add(string text, bool enabled, Action action)
+		{
+			var item = new ToolStripMenuItem(text) { Enabled = enabled };
+
+			item.Click += (_, _) =>
+			{
+				action();
+				TouchCaret();
+			};
+
+			menu.Items.Add(item);
+		}
+	}
+
 	#endregion
 
 	#region Клавиатура
@@ -366,6 +479,8 @@ public sealed partial class MainView
 
 		if (session == null)
 			return false;
+
+		session.NoticeExternalEdit();
 
 		bool shift = (e.Modifiers & Keys.Shift) == Keys.Shift;
 
@@ -501,6 +616,7 @@ public sealed partial class MainView
 		if (session == null || char.IsControl(e.KeyChar))
 			return false;
 
+		session.NoticeExternalEdit();
 		session.Insert(e.KeyChar.ToString());
 
 		TouchCaret();
@@ -555,8 +671,15 @@ public sealed partial class MainView
 
 	private void DrawTextEdit(SKCanvas canvas)
 	{
-		if (_textEdit != null)
-			TextEditAdorner.Draw(canvas, this, _textEdit);
+		if (_textEdit == null)
+			return;
+
+		// Перед отрисовкой: ту же надпись могли поправить в панели свойств,
+		// не выходя из набора, и каретка тогда считалась бы по тексту,
+		// которого уже нет.
+		_textEdit.NoticeExternalEdit();
+
+		TextEditAdorner.Draw(canvas, this, _textEdit);
 	}
 
 	#endregion

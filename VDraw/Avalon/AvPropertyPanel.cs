@@ -3650,6 +3650,20 @@ public sealed class AvPropertyPanel : UserControl
 			InvalidateVisual();
 		};
 
+		// Поле следует за текстом фигуры.
+		//
+		// Надпись правят и прямо на листе, с кареткой, и панель обязана
+		// показывать набранное. Запись в поле событие не поднимает —
+		// AvTextBox сообщает о правке, только когда поле в фокусе, —
+		// так что обратной записи в модель отсюда не будет.
+		_shapeParamRefreshers.Add(() =>
+		{
+			string text = shape.Text ?? string.Empty;
+
+			if (!string.Equals(tb.Text, text, StringComparison.Ordinal))
+				tb.Text = text;
+		});
+
 
 		var font = new AvDropDownBox
 		{
