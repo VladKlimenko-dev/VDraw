@@ -155,10 +155,6 @@ public partial class MainForm : Form
 		// модель уже незачем.
 		ReplaceToolbarControls();
 
-		// Последним среди правок полос: к этому моменту на них стоит всё,
-		// что на них будет, и подписи уже переведены.
-		AutoSizeToolbars();
-
 		WinFormsTheme.Register(this);
 		ThemeImages.RegisterMainFormImages(this);
 
@@ -179,6 +175,17 @@ public partial class MainForm : Form
 	/// См. AvToolbarSwap: сами контролы остаются на месте как модель,
 	/// меняется только то, что видно.
 	/// </summary>
+	/// <summary>
+	/// Ширина полосы, какой её задал дизайнер.
+	///
+	/// Подбор ширины всегда начинается с неё, а не с текущей. Иначе
+	/// полоса только росла бы: при переходе на язык с более короткими
+	/// подписями она оставалась бы растянутой, а при каждом следующем
+	/// переключении уезжала бы ещё правее — контролы на глазах
+	/// расползались по полосам.
+	/// </summary>
+	private readonly Dictionary<FlowLayoutPanel, int> _toolbarBaseWidth = new();
+
 	/// <summary>
 	/// Полосы инструментов подстраиваются по ширине под своё содержимое.
 	///
@@ -208,14 +215,18 @@ public partial class MainForm : Form
 			FitToolbar(flow);
 	}
 
-	private static void FitToolbar(FlowLayoutPanel flow)
+	private void FitToolbar(FlowLayoutPanel flow)
 	{
 		// AutoSize здесь не годится: при стыковке слева высота полосы
 		// задаётся родителем, а расчёт предпочтительного размера видит
 		// высоту неограниченной и переносить не собирается.
 		flow.AutoSize = false;
 
-		int start = Math.Max(flow.Width, 16);
+		if (!_toolbarBaseWidth.TryGetValue(flow, out int start))
+		{
+			start = Math.Max(flow.Width, 16);
+			_toolbarBaseWidth[flow] = start;
+		}
 
 		for (int width = start; width <= start + 1200; width += 8)
 		{
@@ -1029,6 +1040,22 @@ public partial class MainForm : Form
 		UpdateSelectionToolbars();
 
 		colors_panel.SendToBack();
+	}
+
+	/// <summary>
+	/// Подгонка полос — после первого показа окна.
+	///
+	/// Раньше она стояла в конструкторе и не делала ничего: раскладка
+	/// там ещё заморожена, PerformLayout не считает, и подбор ширины
+	/// видел положения контролов из файла дизайнера, а не настоящие.
+	/// Вдобавок разделители на полосы добавляются позже, в OnLoad, —
+	/// подогнанная до них ширина всё равно оказалась бы мала.
+	/// </summary>
+	protected override void OnShown(EventArgs e)
+	{
+		base.OnShown(e);
+
+		AutoSizeToolbars();
 	}
 
 	protected override void OnFormClosing(FormClosingEventArgs e)
