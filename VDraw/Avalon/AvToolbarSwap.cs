@@ -109,7 +109,14 @@ public static class AvToolbarSwap
 				ItemHeight = 26f,
 				DropDownMaxHeight = 320f,
 				HorizontalAlignment = HorizontalAlignment.Stretch,
-				VerticalAlignment = VerticalAlignment.Center
+
+				// Растягивается на всю высоту хоста, а своя нижняя
+				// граница снимается. Иначе список берёт высоту у темы
+				// Fluent — она больше отведённых полосой точек, — и его
+				// верхняя с нижней границы оказывались срезаны: рамка
+				// выглядела состоящей из двух боковых палочек.
+				VerticalAlignment = VerticalAlignment.Stretch,
+				MinHeight = 0
 			};
 
 			created.SelectedIndexChanged += (index, _) =>
@@ -174,7 +181,9 @@ public static class AvToolbarSwap
 			var created = new AvNumericUpDown
 			{
 				HorizontalAlignment = HorizontalAlignment.Stretch,
-				VerticalAlignment = VerticalAlignment.Center
+				VerticalAlignment = VerticalAlignment.Stretch,
+				Height = double.NaN,
+				MinHeight = 0
 			};
 
 			created.ValueChanged += value =>

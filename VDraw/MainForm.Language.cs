@@ -49,6 +49,9 @@ public partial class MainForm
 			SetToolTips();
 			UpdateLanguageButton();
 
+			// Подписи стали другой длины — полосы пересчитывают ширину.
+			AutoSizeToolbars();
+
 			// Панель свойств собирает подписи строк при построении,
 			// поэтому её нужно пересобрать, а не перерисовать.
 			_propPanel?.RebuildForSelection();

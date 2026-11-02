@@ -895,8 +895,29 @@ public sealed class AvCheckBox : Control
 	private bool _checked;
 	private bool _hover;
 
-	/// <summary>Надпись справа от квадрата. Пустая — только квадрат.</summary>
-	public string Text { get; set; } = string.Empty;
+	private string _text = string.Empty;
+
+	/// <summary>
+	/// Надпись справа от квадрата. Пустая — только квадрат.
+	///
+	/// Присваивание перерисовывает контрол и пересчитывает его ширину:
+	/// без этого смена языка ничего не меняла на экране, пока на флажок
+	/// не наводили мышь — перерисовку вызывало только наведение.
+	/// </summary>
+	public string Text
+	{
+		get => _text;
+		set
+		{
+			if (_text == value)
+				return;
+
+			_text = value ?? string.Empty;
+
+			InvalidateMeasure();
+			InvalidateVisual();
+		}
+	}
 
 	/// <summary>
 	/// Состояние галочки.

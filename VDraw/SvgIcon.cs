@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.IO;
 using System.Xml.Linq;
 
@@ -87,12 +87,14 @@ public static class SvgIcon
 
 				canvas.Scale(scale);
 
+				float strokeScale = StrokeScale(root, Math.Max(srcW, srcH));
+
 				foreach (var element in root.Descendants())
 				{
 					if (element.Name.LocalName != "path")
 						continue;
 
-					DrawPath(canvas, element, foreground, background);
+					DrawPath(canvas, element, foreground, background, strokeScale);
 				}
 			}
 
@@ -106,7 +108,61 @@ public static class SvgIcon
 		}
 	}
 
-	private static void DrawPath(SKCanvas canvas, XElement element, SKColor fg, SKColor bg)
+	/// <summary>
+	/// Доля холста, которую занимает тонкая линия у большинства значков:
+	/// толщина 4 при холсте 92.
+	/// </summary>
+	private const float ReferenceStrokeRatio = 4f / 92f;
+
+	/// <summary>
+	/// Поправка к толщине линий, приводящая значок к общему виду.
+	///
+	/// Значки нарисованы на холстах разного размера: у одних он 92 точки
+	/// по большей стороне, у других 139. Толщина линии при этом у всех
+	/// проставлена примерно одинаковой — 3 или 4 единицы холста. После
+	/// вписывания в кнопку холст сжимается, и линия значка с крупного
+	/// холста выходит вдвое тоньше: на полосе он выглядит бледным
+	/// наброском рядом с остальными.
+	///
+	/// Поэтому толщина приводится к общей доле холста. За основу берётся
+	/// самая тонкая линия файла: отношения толщин внутри значка
+	/// сохраняются, и задуманная разница между тонкими и толстыми
+	/// линиями не пропадает.
+	///
+	/// Поправка ограничена: файл, нарисованный заведомо иначе, не должен
+	/// превращаться в кляксу или в волосок.
+	/// </summary>
+	private static float StrokeScale(XElement root, float canvasSize)
+	{
+		if (canvasSize <= 0f)
+			return 1f;
+
+		float thinnest = float.MaxValue;
+
+		foreach (var element in root.Descendants())
+		{
+			if (element.Name.LocalName != "path")
+				continue;
+
+			string? stroke = element.Attribute("stroke")?.Value;
+
+			if (stroke == null || IsNone(stroke))
+				continue;
+
+			float width = Length(element.Attribute("stroke-width")?.Value, 1f);
+
+			if (width > 0f && width < thinnest)
+				thinnest = width;
+		}
+
+		if (thinnest == float.MaxValue)
+			return 1f;
+
+		return Math.Clamp(ReferenceStrokeRatio * canvasSize / thinnest, 0.5f, 3f);
+	}
+
+	private static void DrawPath(
+		SKCanvas canvas, XElement element, SKColor fg, SKColor bg, float strokeScale)
 	{
 		string? data = element.Attribute("d")?.Value;
 
@@ -153,7 +209,7 @@ public static class SvgIcon
 		{
 			IsAntialias = true,
 			Style = SKPaintStyle.Stroke,
-			StrokeWidth = Length(element.Attribute("stroke-width")?.Value, 1f),
+			StrokeWidth = Length(element.Attribute("stroke-width")?.Value, 1f) * strokeScale,
 			StrokeCap = SKStrokeCap.Round,
 			StrokeJoin = SKStrokeJoin.Round,
 			Color = MapColor(stroke, fg, bg)
