@@ -116,6 +116,7 @@ public static class AvToolbarSwap
 				// верхняя с нижней границы оказывались срезаны: рамка
 				// выглядела состоящей из двух боковых палочек.
 				VerticalAlignment = VerticalAlignment.Stretch,
+				Height = double.NaN,
 				MinHeight = 0
 			};
 
@@ -247,7 +248,11 @@ public static class AvToolbarSwap
 			var created = new AvCheckBox
 			{
 				HorizontalAlignment = HorizontalAlignment.Left,
-				VerticalAlignment = VerticalAlignment.Center
+				VerticalAlignment = VerticalAlignment.Center,
+
+				// Отступ от соседа слева: в дизайне флажок стоял сразу
+				// за счётчиком и почти прилипал к его стрелкам.
+				Margin = new global::Avalonia.Thickness(10, 0, 0, 0)
 			};
 
 			created.CheckedChanged += value =>
@@ -269,7 +274,7 @@ public static class AvToolbarSwap
 		source.EnabledChanged += (_, _) => Pull();
 		source.TextChanged += (_, _) => Pull();
 
-		Mount(source, Create);
+		Mount(source, Create, sizeToContent: true);
 	}
 
 	#endregion
@@ -290,7 +295,10 @@ public static class AvToolbarSwap
 	/// раз, остался бы в цветах темы, которая была при запуске: в светлой
 	/// теме поля ввода так и стояли чёрными.
 	/// </summary>
-	private static void Mount(Control source, Func<global::Avalonia.Controls.Control> create)
+	private static void Mount(
+		Control source,
+		Func<global::Avalonia.Controls.Control> create,
+		bool sizeToContent = false)
 	{
 		var parent = source.Parent;
 
@@ -299,11 +307,13 @@ public static class AvToolbarSwap
 
 		int index = parent.Controls.GetChildIndex(source);
 
+		var content = Wrap(create());
+
 		var host = new global::Avalonia.Win32.Interoperability.WinFormsAvaloniaControlHost
 		{
-			Content = Wrap(create()),
+			Content = content,
 			Location = source.Location,
-			Size = source.Size,
+			Size = sizeToContent ? ContentSize(content, source.Size) : source.Size,
 			Margin = source.Margin,
 			Anchor = source.Anchor,
 			TabStop = false
@@ -319,6 +329,23 @@ public static class AvToolbarSwap
 		parent.Controls.SetChildIndex(host, index);
 
 		SkUiTheme.ThemeChanged += () => host.Content = Wrap(create());
+	}
+
+	/// <summary>
+	/// Размер под содержимое, но не меньше заданного дизайнером.
+	///
+	/// Нужен подписанным контролам: ширина в дизайне посчитана под
+	/// английский текст, а по-русски подпись длиннее и обрезалась бы.
+	/// </summary>
+	private static System.Drawing.Size ContentSize(
+		global::Avalonia.Controls.Control content, System.Drawing.Size designed)
+	{
+		content.Measure(new global::Avalonia.Size(
+			double.PositiveInfinity, double.PositiveInfinity));
+
+		int width = (int)Math.Ceiling(content.DesiredSize.Width) + 2;
+
+		return new System.Drawing.Size(Math.Max(designed.Width, width), designed.Height);
 	}
 
 	/// <summary>

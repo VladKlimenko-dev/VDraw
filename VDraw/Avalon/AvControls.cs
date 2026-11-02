@@ -1327,15 +1327,20 @@ public sealed class AvNumericUpDown : Border
 		_up = CreateArrow("▴", +1);
 		_down = CreateArrow("▾", -1);
 
-		var arrows = new AvFlow
+		// Две строки по половине высоты, а не заданная высота у каждой
+		// кнопки: счётчик на полосе инструментов бывает и выше, и ниже
+		// строки свойств, и при жёсткой высоте вторая стрелка не влезала.
+		var arrows = new Grid
 		{
-			Direction = AvFlowDirection.Vertical,
-			Gap = 0,
-			Width = ArrowWidth
+			Width = ArrowWidth,
+			RowDefinitions = new RowDefinitions("*,*")
 		};
 
-		arrows.Add(_up);
-		arrows.Add(_down);
+		Grid.SetRow(_up, 0);
+		Grid.SetRow(_down, 1);
+
+		arrows.Children.Add(_up);
+		arrows.Children.Add(_down);
 
 		var grid = new Grid
 		{
@@ -1363,7 +1368,11 @@ public sealed class AvNumericUpDown : Border
 	/// </summary>
 	private const double ArrowWidth = 22;
 
-	private const double ArrowFontSize = 13;
+	/// <summary>
+	/// Кегль стрелки. Меньше высоты половинки: при 13 глиф в неё
+	/// не умещался и обрезался сверху и снизу.
+	/// </summary>
+	private const double ArrowFontSize = 11;
 
 	private RepeatButton CreateArrow(string glyph, int sign)
 	{
@@ -1378,7 +1387,7 @@ public sealed class AvNumericUpDown : Border
 				VerticalAlignment = VerticalAlignment.Center
 			},
 			Width = ArrowWidth,
-			Height = (AvTheme.InputHeight - 2) / 2,
+			VerticalAlignment = VerticalAlignment.Stretch,
 			MinHeight = 0,
 			MinWidth = 0,
 			Padding = new Thickness(0),

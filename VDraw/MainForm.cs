@@ -222,46 +222,152 @@ public partial class MainForm : Form
 		// высоту неограниченной и переносить не собирается.
 		flow.AutoSize = false;
 
-		if (!_toolbarBaseWidth.TryGetValue(flow, out int start))
+		if (!_toolbarBaseWidth.TryGetValue(flow, out int baseWidth))
 		{
-			start = Math.Max(flow.Width, 16);
-			_toolbarBaseWidth[flow] = start;
+			baseWidth = Math.Max(flow.Width, 16);
+			_toolbarBaseWidth[flow] = baseWidth;
 		}
 
-		for (int width = start; width <= start + 1200; width += 8)
-		{
+		int width = Math.Max(baseWidth, NeededWidth(flow, baseWidth));
+
+		if (flow.Width != width)
 			flow.Width = width;
-			flow.PerformLayout();
-
-			if (ContentFits(flow))
-				return;
-		}
-
-		// Не поместилось и с запасом — значит, дело не в ширине.
-		// Возвращаем исходную, чтобы полоса не осталась растянутой
-		// на весь экран.
-		flow.Width = start;
-		flow.PerformLayout();
 	}
 
-	/// <summary>Всё ли содержимое полосы укладывается в её границы.</summary>
-	private static bool ContentFits(FlowLayoutPanel flow)
+	/// <summary>
+	/// Ширина, при которой содержимое полосы помещается целиком.
+	///
+	/// Считается в уме, а не подбирается примеркой на экране. Примерка
+	/// означала бы десятки присваиваний ширины подряд, и каждое из них
+	/// перекладывает полосу: окно успевало это нарисовать, и при запуске
+	/// кнопки ехали по полосам на глазах.
+	///
+	/// Число рядов не задаётся и не угадывается. Полосы в две строки —
+	/// не случайность, а экономия места, и устроены они переносом:
+	/// подпись с полем не влезают в ширину рядом с соседней парой
+	/// и переходят на второй ряд. Поэтому ширина ищется наименьшая
+	/// из тех, при которых содержимое укладывается в ВЫСОТУ полосы,
+	/// и начинается поиск с ширины, заданной дизайнером. Пока его
+	/// раскладка сходится, она и остаётся; ширина добавляется, только
+	/// если содержимое переросло высоту.
+	/// </summary>
+	private static int NeededWidth(FlowLayoutPanel flow, int baseWidth)
 	{
-		var area = flow.ClientSize;
+		var children = new List<Control>();
 
 		foreach (Control child in flow.Controls)
 		{
-			if (!child.Visible)
-				continue;
-
-			if (child.Right + child.Margin.Right > area.Width)
-				return false;
-
-			if (child.Bottom + child.Margin.Bottom > area.Height)
-				return false;
+			if (child.Visible)
+				children.Add(child);
 		}
 
-		return true;
+		if (children.Count == 0)
+			return flow.Width;
+
+		int padding = flow.Padding.Horizontal;
+
+		if (flow.FlowDirection is FlowDirection.TopDown or FlowDirection.BottomUp)
+			return ColumnsWidth(flow, children) + padding;
+
+		int available = Math.Max(1, flow.ClientSize.Height - flow.Padding.Vertical);
+		// От ширины дизайнера, а не от текущей: иначе полоса, однажды
+		// расширенная, задавала бы себе новый минимум и от переключения
+		// к переключению только росла.
+		int baseContent = Math.Max(1, baseWidth - padding);
+
+		// Переносы меняются только тогда, когда ширина переходит через
+		// сумму ширин какой-нибудь идущей подряд группы контролов.
+		// Этих сумм немного, и перебрать их дешевле и точнее, чем идти
+		// по ширине шагами.
+		var candidates = new SortedSet<int> { baseContent };
+
+		for (int i = 0; i < children.Count; i++)
+		{
+			int run = 0;
+
+			for (int j = i; j < children.Count; j++)
+			{
+				run += children[j].Width + children[j].Margin.Horizontal;
+				candidates.Add(run);
+			}
+		}
+
+		foreach (int width in candidates)
+		{
+			if (width >= baseContent && FitsHeight(children, width, available, flow.WrapContents))
+				return width + padding;
+		}
+
+		// Не укладывается ни при какой ширине — значит, дело не в ней:
+		// какой-то контрол сам по себе выше полосы. Тогда хотя бы один
+		// ряд: так видно все контролы, а не половину.
+		int row = 0;
+
+		foreach (var child in children)
+			row += child.Width + child.Margin.Horizontal;
+
+		return row + padding;
+	}
+
+	/// <summary>
+	/// Укладывается ли содержимое в высоту полосы при такой ширине.
+	/// Повторяет перенос, который делает FlowLayoutPanel.
+	/// </summary>
+	private static bool FitsHeight(List<Control> children, int width, int available, bool wrap)
+	{
+		int x = 0;
+		int rowHeight = 0;
+		int total = 0;
+
+		foreach (var child in children)
+		{
+			int w = child.Width + child.Margin.Horizontal;
+			int h = child.Height + child.Margin.Vertical;
+
+			// Первый в ряду не переносится никогда: пустой ряд ничего
+			// не решает, а контрол шире полосы всё равно будет обрезан.
+			if (wrap && x > 0 && x + w > width)
+			{
+				total += rowHeight;
+				x = 0;
+				rowHeight = 0;
+			}
+
+			x += w;
+			rowHeight = Math.Max(rowHeight, h);
+		}
+
+		return total + rowHeight <= available;
+	}
+
+	/// <summary>
+	/// Ширина полосы с порядком сверху вниз: контролы встают колонками
+	/// по высоте полосы, и ширина — сумма ширин колонок.
+	/// </summary>
+	private static int ColumnsWidth(FlowLayoutPanel flow, List<Control> children)
+	{
+		int available = Math.Max(1, flow.ClientSize.Height - flow.Padding.Vertical);
+		int total = 0;
+		int columnWidth = 0;
+		int columnHeight = 0;
+
+		foreach (var child in children)
+		{
+			int h = child.Height + child.Margin.Vertical;
+			int w = child.Width + child.Margin.Horizontal;
+
+			if (flow.WrapContents && columnHeight > 0 && columnHeight + h > available)
+			{
+				total += columnWidth;
+				columnWidth = 0;
+				columnHeight = 0;
+			}
+
+			columnHeight += h;
+			columnWidth = Math.Max(columnWidth, w);
+		}
+
+		return total + columnWidth;
 	}
 
 	private static IEnumerable<FlowLayoutPanel> FindFlowPanels(Control root)
