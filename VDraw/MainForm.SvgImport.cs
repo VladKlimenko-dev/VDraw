@@ -16,6 +16,13 @@ public partial class MainForm
 	private const float SvgRowGapMm = 5f;
 
 	/// <summary>
+	/// Самая тонкая обводка в единицах листа. Тот же порог, с которым
+	/// импортёр принимает толщину из файла: ужатый чертёж не должен
+	/// получать линию тоньше той, которую импорт считает допустимой.
+	/// </summary>
+	private const float MinStrokeThickness = 0.01f;
+
+	/// <summary>
 	/// Доля листа, оставляемая по краям, когда ряд приходится ужимать.
 	/// Иначе крайние контуры ложились бы вплотную к обрезу.
 	/// </summary>
@@ -61,7 +68,12 @@ public partial class MainForm
 
 				if (result.Shapes.Count == 0)
 				{
-					failed.Add(Path.GetFileName(file));
+					// В список «нечего вставить» файл попадает только
+					// молча: если разбор уже сказал, почему файл пустой,
+					// второе окно о том же самом — лишнее.
+					if (result.Warnings.Count == 0)
+						failed.Add(Path.GetFileName(file));
+
 					continue;
 				}
 
@@ -69,7 +81,21 @@ public partial class MainForm
 			}
 
 			if (roots.Count > 0)
+			{
 				LayOutSvgRow(page, roots);
+
+				// Добавление на лист — тоже внутри try: это шаг истории
+				// и событие ShapeAdded, то есть чужой код, и падать от него
+				// в async void значит уронить приложение вместо окна
+				// с ошибкой.
+				page.AddShapes(roots);
+
+				sel.Set(roots);
+				page.doc.need_save = true;
+
+				sel.NotifyGeometryChanged();
+				_mainView?.Invalidate();
+			}
 		}
 		catch (Exception ex)
 		{
@@ -85,17 +111,6 @@ public partial class MainForm
 		finally
 		{
 			Cursor = Cursors.Default;
-		}
-
-		if (roots.Count > 0)
-		{
-			page.AddShapes(roots);
-
-			sel.Set(roots);
-			page.doc.need_save = true;
-
-			sel.NotifyGeometryChanged();
-			_mainView?.Invalidate();
 		}
 
 		if (failed.Count > 0)
@@ -130,19 +145,27 @@ public partial class MainForm
 			return shapes[0];
 		}
 
-		var group = new GroupShape
-		{
-			Name = name,
-			Layer = shapes[0].Layer
-		};
+		// Слой группе не назначается: он ничейный у всего, что пришло
+		// из файла, и выдаст его Page.AddShape через EnsureLayerAssigned —
+		// уже с учётом того, что на листе лежит.
+		var group = new GroupShape { Name = name };
 
 		// Children.Add напрямую, а не AddChild: тот на каждом вызове
 		// проверяет Contains и пересортировывает список целиком, то есть
 		// на файле в десять тысяч контуров делает квадратичную работу.
 		// Порядок у фигур уже верный — он задан порядком в файле.
-		foreach (var shape in shapes)
+		//
+		// Но номера слоёв расставить всё равно надо. Page.AddShape выдаёт
+		// их только корню, а SortChildrenByLayer — обычный List.Sort,
+		// то есть сортировка неустойчивая: у детей с одинаковым (ничейным)
+		// слоем первая же отмена или преобразование внутри группы
+		// перемешали бы порядок перекрытия рисунка.
+		for (int i = 0; i < shapes.Count; i++)
 		{
+			var shape = shapes[i];
+
 			shape.ReparentPreserveWorld(group);
+			shape.Layer = i;
 			group.Children.Add(shape);
 		}
 
@@ -162,15 +185,21 @@ public partial class MainForm
 		float availableWidth = page.size_uom.Width * (1f - SvgPageMargin * 2f);
 		float availableHeight = page.size_uom.Height * (1f - SvgPageMargin * 2f);
 
+		// Габариты снимаются по одному разу на проход и запоминаются:
+		// у кривой GetBounds каждый раз собирает мировой путь заново
+		// и считает по нему точную коробку, и на карте в десятки тысяч
+		// узлов лишний проход заметен.
+		var bounds = new SKRect[roots.Count];
+
 		float contentWidth = 0f;
 		float contentHeight = 0f;
 
-		foreach (var root in roots)
+		for (int i = 0; i < roots.Count; i++)
 		{
-			var b = root.GetBounds();
+			bounds[i] = roots[i].GetBounds();
 
-			contentWidth += b.Width;
-			contentHeight = MathF.Max(contentHeight, b.Height);
+			contentWidth += bounds[i].Width;
+			contentHeight = MathF.Max(contentHeight, bounds[i].Height);
 		}
 
 		float gap = SvgRowGapMm / MathF.Max(page.MmPerUom, 0.0001f);
@@ -195,40 +224,33 @@ public partial class MainForm
 		if (contentHeight * scale > availableHeight && contentHeight > 0f)
 			scale = availableHeight / contentHeight;
 
-		if (scale < 1f)
-		{
-			foreach (var root in roots)
-				ScaleSvgRoot(root, scale);
-		}
-
-		// Габариты после ужатия берутся заново, а не считаются: у фигуры
-		// они определяются по самой кривой, и умножать прежнюю коробку
-		// на коэффициент — значит повторять эту работу приблизительно.
 		float rowWidth = gap * gaps;
 
-		foreach (var root in roots)
-			rowWidth += root.GetBounds().Width;
+		if (scale < 1f)
+		{
+			// После ужатия коробки берутся заново, а не умножаются
+			// на коэффициент: у фигуры они считаются по самой кривой,
+			// и приблизительное умножение сдвинуло бы ряд.
+			for (int i = 0; i < roots.Count; i++)
+			{
+				ScaleSvgRoot(roots[i], scale);
+
+				bounds[i] = roots[i].GetBounds();
+			}
+		}
+
+		foreach (var b in bounds)
+			rowWidth += b.Width;
 
 		float x = page.page_origin.X + (page.size_uom.Width - rowWidth) * 0.5f;
 		float middle = page.page_origin.Y + page.size_uom.Height * 0.5f;
 
-		foreach (var root in roots)
+		for (int i = 0; i < roots.Count; i++)
 		{
-			var bounds = root.GetBounds();
+			roots[i].MoveByWorld(x - bounds[i].Left, middle - bounds[i].MidY);
 
-			Move(root, x - bounds.Left, middle - bounds.MidY);
-
-			x += bounds.Width + gap;
+			x += bounds[i].Width + gap;
 		}
-	}
-
-	private static void Move(Shape shape, float dx, float dy)
-	{
-		if (MathF.Abs(dx) < 0.0001f && MathF.Abs(dy) < 0.0001f)
-			return;
-
-		shape.LocalTransform = shape.LocalTransform.PostConcat(
-			SKMatrix.CreateTranslation(dx, dy));
 	}
 
 	/// <summary>
@@ -241,15 +263,17 @@ public partial class MainForm
 	/// </summary>
 	private static void ScaleSvgRoot(Shape shape, float scale)
 	{
-		shape.LocalTransform = shape.LocalTransform.PostConcat(
-			SKMatrix.CreateScale(scale, scale));
+		// ApplyWorldTransform, а не правка LocalTransform напрямую:
+		// он сам учитывает матрицу родителя и пересчитывает местную
+		// матрицу относительно неё.
+		shape.ApplyWorldTransform(SKMatrix.CreateScale(scale, scale));
 
 		ScaleStrokes(shape, scale);
 	}
 
 	private static void ScaleStrokes(Shape shape, float scale)
 	{
-		shape.Stroke.Thickness = MathF.Max(shape.Stroke.Thickness * scale, 0.001f);
+		shape.Stroke.Thickness = MathF.Max(shape.Stroke.Thickness * scale, MinStrokeThickness);
 
 		if (shape is GroupShape group)
 		{

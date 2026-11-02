@@ -17,9 +17,6 @@ public sealed class SvgImportResult
 {
 	public List<Shape> Shapes { get; } = new();
 
-	/// <summary>Габариты содержимого в единицах листа. Пусто — файл без графики.</summary>
-	public SKRect Bounds { get; set; } = SKRect.Empty;
-
 	/// <summary>Чего разборщик не понял. Показывается пользователю списком.</summary>
 	public List<string> Warnings { get; } = new();
 }
@@ -66,6 +63,12 @@ public static class SvgImporter
 
 		public bool EvenOdd;
 
+		/// <summary>
+		/// Заливка или обводка задана ссылкой на определение — градиентом
+		/// или узором. Разобрать её нельзя, и об этом надо предупредить.
+		/// </summary>
+		public bool PaintServer;
+
 		public Style Clone() => (Style)MemberwiseClone();
 	}
 
@@ -109,9 +112,18 @@ public static class SvgImporter
 		var toPage = BuildRootTransform(root, mmPerUom);
 		var sheet = ReadStyleSheet(root);
 
-		Walk(root, toPage, new Style(), result, System.IO.Path.GetFileNameWithoutExtension(path), sheet);
+		// SVG 2 разрешает преобразование и на самом корне.
+		var rootTransform = ParseTransform(root.Attribute("transform")?.Value);
 
-		result.Bounds = MeasureBounds(result.Shapes);
+		if (rootTransform != null)
+			toPage = Concat(toPage, rootTransform.Value);
+
+		// Стиль корня читается, а не берётся по умолчанию. На нём держится
+		// целый класс наборов значков: Feather, Lucide, Tabler и прочие
+		// пишут fill="none" stroke="currentColor" stroke-width="2" именно
+		// на элементе svg. Без этого весь набор приходил бы чёрными
+		// кляксами — с унаследованной чёрной заливкой и без обводки.
+		Walk(root, toPage, ReadStyle(root, new Style(), sheet), result, sheet);
 
 		return result;
 	}
@@ -352,8 +364,7 @@ public static class SvgImporter
 	#region Обход дерева
 
 	private static void Walk(
-		XElement element, SKMatrix parent, Style inherited, SvgImportResult result, string name,
-		Sheet sheet)
+		XElement element, SKMatrix parent, Style inherited, SvgImportResult result, Sheet sheet)
 	{
 		foreach (var child in element.Elements())
 		{
@@ -366,6 +377,8 @@ public static class SvgImporter
 			if (IsHidden(child))
 				continue;
 
+			WarnAboutIgnoredAttributes(child, result);
+
 			var transform = ParseTransform(child.Attribute("transform")?.Value);
 			var matrix = transform == null ? parent : Concat(parent, transform.Value);
 
@@ -376,7 +389,7 @@ public static class SvgImporter
 				case "g":
 				case "svg":
 				case "a":
-					Walk(child, matrix, style, result, name, sheet);
+					Walk(child, matrix, style, result, sheet);
 					break;
 
 				case "defs":
@@ -384,9 +397,11 @@ public static class SvgImporter
 				case "clippath":
 				case "mask":
 				case "marker":
-					// Определения сами ничего не рисуют. Ссылки на них
-					// (use, clip-path) не разбираются — см. предупреждение
-					// ниже, в ветке по умолчанию.
+					// Определения сами ничего не рисуют, поэтому внутрь
+					// обход не заходит. О ссылках на них предупреждают
+					// другие места: use — ветка по умолчанию, clip-path
+					// и mask — WarnAboutIgnoredAttributes, градиенты —
+					// AddShape по признаку Style.PaintServer.
 					break;
 
 				case "title":
@@ -406,7 +421,7 @@ public static class SvgImporter
 						using var path = BuildPath(child, tag);
 
 						if (path != null && !path.IsEmpty)
-							AddShape(path, matrix, style, result, name);
+							AddShape(path, matrix, style, result, child);
 
 						break;
 					}
@@ -416,6 +431,22 @@ public static class SvgImporter
 					break;
 			}
 		}
+	}
+
+	/// <summary>
+	/// Свойства, которых импорт не умеет, но которые меняют вид рисунка.
+	///
+	/// Молчать о них нельзя: обрезка и маска убирают часть изображения,
+	/// и без них на лист придёт то, чего пользователь в исходнике
+	/// не видел, — а пунктир придёт сплошной линией.
+	/// </summary>
+	private static void WarnAboutIgnoredAttributes(XElement element, SvgImportResult result)
+	{
+		if (element.Attribute("clip-path") != null || element.Attribute("mask") != null)
+			Warn(result, "clip-path");
+
+		if (element.Attribute("stroke-dasharray") != null)
+			Warn(result, "stroke-dasharray");
 	}
 
 	private static bool IsHidden(XElement element)
@@ -439,10 +470,14 @@ public static class SvgImporter
 		if (inline == null)
 			return false;
 
-		return inline.Contains("display:none", StringComparison.OrdinalIgnoreCase)
-			|| inline.Contains("display: none", StringComparison.OrdinalIgnoreCase)
-			|| inline.Contains("visibility:hidden", StringComparison.OrdinalIgnoreCase)
-			|| inline.Contains("visibility: hidden", StringComparison.OrdinalIgnoreCase);
+		// Пробелы выбрасываются до поиска: «display : none» и «display:none»
+		// значат одно и то же, а перечислять все написания по отдельности —
+		// значит пропустить то, которого не предусмотрел.
+		string packed = string.Concat(inline.Where(c => !char.IsWhiteSpace(c)));
+
+		return packed.Contains("display:none", StringComparison.OrdinalIgnoreCase)
+			|| packed.Contains("visibility:hidden", StringComparison.OrdinalIgnoreCase)
+			|| packed.Contains("visibility:collapse", StringComparison.OrdinalIgnoreCase);
 	}
 
 	private static void Warn(SvgImportResult result, string tag)
@@ -454,6 +489,8 @@ public static class SvgImporter
 			"use" => L.T("References to definitions (use) were not imported."),
 			"lineargradient" or "radialgradient" => L.T("Gradients from the SVG file were not imported."),
 			"filter" => L.T("Filters from the SVG file were not imported."),
+			"clip-path" => L.T("Clipping and masks were not imported: the whole drawing came in."),
+			"stroke-dasharray" => L.T("Dashed strokes came in as solid lines."),
 			_ => L.T("Unknown SVG element: {0}.", tag)
 		};
 
@@ -576,7 +613,7 @@ public static class SvgImporter
 	}
 
 	private static void AddShape(
-		SKPath path, SKMatrix matrix, Style style, SvgImportResult result, string name)
+		SKPath path, SKMatrix matrix, Style style, SvgImportResult result, XElement element)
 	{
 		using var mapped = new SKPath();
 
@@ -587,7 +624,19 @@ public static class SvgImporter
 		if (shape == null)
 			return;
 
-		shape.Name = name;
+		// Имя — идентификатор из файла, если он там есть. Прежде каждому
+		// контуру доставалось имя файла, и в дереве объектов группа из
+		// сотни контуров выглядела сотней одинаковых строк.
+		string? id = element.Attribute("id")?.Value;
+
+		if (!string.IsNullOrWhiteSpace(id))
+			shape.Name = id.Trim();
+
+		// Заливка ссылкой на определение (градиент, узор) разобрана быть
+		// не может, и предупредить об этом можно только здесь: сами
+		// определения лежат в defs, куда обход не заходит.
+		if (style.PaintServer)
+			Warn(result, "lineargradient");
 
 		ApplyStyle(shape, style, matrix);
 
@@ -835,33 +884,6 @@ public static class SvgImporter
 		return shape;
 	}
 
-	/// <summary>Общая коробка всех фигур в единицах листа.</summary>
-	public static SKRect MeasureBounds(IEnumerable<Shape> shapes)
-	{
-		SKRect bounds = SKRect.Empty;
-		bool first = true;
-
-		foreach (var shape in shapes)
-		{
-			var b = shape.GetBounds();
-
-			if (b.Width <= 0f && b.Height <= 0f)
-				continue;
-
-			if (first)
-			{
-				bounds = b;
-				first = false;
-			}
-			else
-			{
-				bounds = Geometry.Union(bounds, b);
-			}
-		}
-
-		return bounds;
-	}
-
 	#endregion
 
 	#region Разбор значений
@@ -919,10 +941,12 @@ public static class SvgImporter
 		switch (key)
 		{
 			case "fill":
+				style.PaintServer |= IsPaintServer(value);
 				style.Fill = ParseColor(value, style.Fill);
 				break;
 
 			case "stroke":
+				style.PaintServer |= IsPaintServer(value);
 				style.Stroke = ParseColor(value, style.Stroke);
 				break;
 
@@ -947,6 +971,9 @@ public static class SvgImporter
 				break;
 		}
 	}
+
+	private static bool IsPaintServer(string? value)
+		=> value != null && value.TrimStart().StartsWith("url(", StringComparison.OrdinalIgnoreCase);
 
 	/// <summary>
 	/// Цвет SVG. null означает «не рисовать»: именно так читается none,
@@ -1016,7 +1043,10 @@ public static class SvgImporter
 	{
 		var known = System.Drawing.Color.FromName(value);
 
-		if (!known.IsKnownColor)
+		// IsKnownColor истинно и для системных цветов оформления Windows:
+		// без этой проверки fill="window" или fill="menu" подставил бы
+		// цвет темы рабочего стола вместо цвета из файла.
+		if (!known.IsKnownColor || known.IsSystemColor)
 			return null;
 
 		return new SKColor(known.R, known.G, known.B, known.A);
@@ -1080,8 +1110,14 @@ public static class SvgImporter
 	///
 	/// Толщина обводки — не физическая длина: она задана в той же системе,
 	/// что и координаты пути, и растягивается вместе с ними через viewBox.
-	/// Поэтому единицы здесь только отбрасываются, а в миллиметры число
-	/// не переводится: перевод сделает матрица, как и для координат.
+	/// Поэтому в миллиметры число не переводится — перевод сделает матрица,
+	/// как и для координат.
+	///
+	/// Физическая единица при этом не отбрасывается, а приводится
+	/// к пользовательской через пиксель: так её определяет и CSS, и браузер.
+	/// Иначе «stroke-width: 0.5mm» читалось бы как полединицы файла, и
+	/// на значке с viewBox в двадцать четыре единицы линия выходила бы
+	/// в несколько раз тоньше, а на карте с viewBox в тысячи — на порядки.
 	/// </summary>
 	private static float ParseUserUnits(string? value, float fallback)
 	{
@@ -1090,14 +1126,29 @@ public static class SvgImporter
 		if (string.IsNullOrEmpty(value))
 			return fallback;
 
-		foreach (string suffix in new[] { "mm", "cm", "in", "pt", "pc", "px", "em", "ex", "%" })
+		// px и пользовательская единица — одно и то же, множитель у них 1.
+		// em, ex и проценты считать не от чего: ни кегля, ни размера
+		// родителя здесь нет, и отказ честнее выдуманного числа.
+		foreach (var (suffix, perUnit) in new (string, float)[]
+		{
+			("mm", PixelsPerInch / MmPerInch),
+			("cm", PixelsPerInch * 10f / MmPerInch),
+			("in", PixelsPerInch),
+			("pt", PixelsPerInch / 72f),
+			("pc", PixelsPerInch / 6f),
+			("px", 1f),
+			("em", 0f),
+			("ex", 0f),
+			("%", 0f)
+		})
 		{
 			if (!value.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
 				continue;
 
-			value = value[..^suffix.Length];
+			if (perUnit == 0f)
+				return fallback;
 
-			break;
+			return ParseFloat(value[..^suffix.Length], fallback) * perUnit;
 		}
 
 		return ParseFloat(value, fallback);
@@ -1250,9 +1301,15 @@ public static class SvgImporter
 		Persp2 = 1f
 	};
 
-	/// <summary>Сначала применяется inner, затем outer.</summary>
+	/// <summary>
+	/// Сначала применяется inner, затем outer.
+	///
+	/// Через Geometry.Multiply, а не PreConcat: тем же способом матрицы
+	/// перемножаются во всём остальном проекте, и порядок множителей
+	/// здесь читается так же, как там.
+	/// </summary>
 	private static SKMatrix Concat(SKMatrix outer, SKMatrix inner)
-		=> outer.PreConcat(inner);
+		=> Geometry.Multiply(outer, inner);
 
 	#endregion
 }

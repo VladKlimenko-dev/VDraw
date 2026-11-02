@@ -881,6 +881,9 @@ internal static class LocalizationRu
 			"Ссылки на определения (use) не переносятся.",
 		["Gradients from the SVG file were not imported."] = "Градиенты из SVG не переносятся.",
 		["Filters from the SVG file were not imported."] = "Фильтры из SVG не переносятся.",
+		["Clipping and masks were not imported: the whole drawing came in."] =
+			"Обрезка и маски не переносятся: рисунок вставлен целиком.",
+		["Dashed strokes came in as solid lines."] = "Пунктирные линии вставлены сплошными.",
 		["Unknown SVG element: {0}."] = "Непонятный элемент SVG: {0}.",
 
 		#endregion
