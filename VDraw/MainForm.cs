@@ -1087,6 +1087,8 @@ public partial class MainForm : Form
 		_mainView.SetPage(cur_doc.pages[0]);
 		HookUndoStack();
 
+		InitFileDrop();
+
 		_propPanel = new AvPropertyPanelHost();
 		_mainView.SelectionChanged += (_, __) =>
 		{
@@ -2871,7 +2873,7 @@ public partial class MainForm : Form
 	/// вызов по файлу выдал бы пользователю их столько же, сколько
 	/// он выбрал файлов.
 	/// </summary>
-	private void ImportFiles(IReadOnlyList<string> files)
+	private void ImportFiles(IReadOnlyList<string> files, SKPoint? at = null)
 	{
 		var customShapes = new List<string>();
 		var stencils = new List<string>();
@@ -2928,8 +2930,8 @@ public partial class MainForm : Form
 
 		ImportCustomShapeFiles(customShapes);
 		ImportVisioStencilFiles(stencils);
-		ImportImageFiles(images);
-		ImportSvgFiles(drawings);
+		ImportImageFiles(images, at);
+		ImportSvgFiles(drawings, at);
 	}
 
 	/// <summary>
@@ -2957,7 +2959,7 @@ public partial class MainForm : Form
 	/// Все картинки добавляются одним вызовом AddShapes, то есть одним
 	/// шагом истории: выбрал пять файлов — отменяется одним Ctrl+Z.
 	/// </summary>
-	private void ImportImageFiles(IReadOnlyList<string> files)
+	private void ImportImageFiles(IReadOnlyList<string> files, SKPoint? at = null)
 	{
 		if (files.Count == 0 || CurrentPage == null)
 			return;
@@ -2973,7 +2975,7 @@ public partial class MainForm : Form
 
 		foreach (var file in files)
 		{
-			var shape = TryCreateImportedImage(page, file, step * added.Count);
+			var shape = TryCreateImportedImage(page, file, step * added.Count, at);
 
 			if (shape == null)
 			{
@@ -3013,7 +3015,8 @@ public partial class MainForm : Form
 	/// Null, а не исключение: в одном выборе могут оказаться и годные
 	/// файлы, и битый, и падать на нём, потеряв остальные, незачем.
 	/// </summary>
-	private static ImageShape? TryCreateImportedImage(Page page, string file, float offset)
+	private static ImageShape? TryCreateImportedImage(
+		Page page, string file, float offset, SKPoint? at = null)
 	{
 		SKBitmap? probe = null;
 
@@ -3026,12 +3029,20 @@ public partial class MainForm : Form
 
 			GetImportedImageSize(page, probe.Width, probe.Height, out float w, out float h);
 
-			// Центр листа: место, которое пользователь заведомо видит.
-			// Привязываться к видимой области холста не стоит — импорт
-			// вызывают и из меню, когда лист может быть отмотан далеко
-			// в сторону, и картинка ушла бы в пустоту за краем страницы.
-			float x = page.page_origin.X + (page.size_uom.Width - w) * 0.5f + offset;
-			float y = page.page_origin.Y + (page.size_uom.Height - h) * 0.5f + offset;
+			// Перетащили мышью — картинка ложится серединой туда, где
+			// отпустили клавишу. Иначе центр листа: место, которое
+			// пользователь заведомо видит. Привязываться к видимой области
+			// холста без указанной точки не стоит — импорт вызывают и
+			// из меню, когда лист может быть отмотан далеко в сторону,
+			// и картинка ушла бы в пустоту за краем страницы.
+			float x = at?.X - w * 0.5f
+				?? page.page_origin.X + (page.size_uom.Width - w) * 0.5f;
+
+			float y = at?.Y - h * 0.5f
+				?? page.page_origin.Y + (page.size_uom.Height - h) * 0.5f;
+
+			x += offset;
+			y += offset;
 
 			var frame = new RectangleShape
 			{

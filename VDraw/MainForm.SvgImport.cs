@@ -43,7 +43,7 @@ public partial class MainForm
 	/// Всё добавляется одним вызовом AddShapes, то есть одним шагом
 	/// истории: выбрал пять файлов — отменяется одним Ctrl+Z.
 	/// </summary>
-	private async void ImportSvgFiles(IReadOnlyList<string> files)
+	private async void ImportSvgFiles(IReadOnlyList<string> files, SKPoint? at = null)
 	{
 		if (files.Count == 0 || CurrentPage == null || _mainView == null)
 			return;
@@ -82,7 +82,7 @@ public partial class MainForm
 
 			if (roots.Count > 0)
 			{
-				LayOutSvgRow(page, roots);
+				LayOutSvgRow(page, roots, at);
 
 				// Добавление на лист — тоже внутри try: это шаг истории
 				// и событие ShapeAdded, то есть чужой код, и падать от него
@@ -173,14 +173,19 @@ public partial class MainForm
 	}
 
 	/// <summary>
-	/// Расставляет файлы в ряд по горизонтали, центром ряда — в центре листа.
+	/// Расставляет файлы в ряд по горизонтали.
+	///
+	/// Без указанной точки ряд встаёт серединой в середину листа.
+	/// Указана точка (перетащили мышью) — в неё ложится середина первого
+	/// рисунка, а остальные идут от него вправо; если ряд при этом вылезает
+	/// за поля, он сдвигается обратно целиком, чтобы не уйти за обрез.
 	///
 	/// Если ряд в лист не влезает, он ужимается целиком и с одним
 	/// коэффициентом на все файлы: пропорции между рисунками при этом
 	/// сохраняются, а разный масштаб у соседних значков выглядел бы
 	/// ошибкой импорта.
 	/// </summary>
-	private static void LayOutSvgRow(Page page, List<Shape> roots)
+	private static void LayOutSvgRow(Page page, List<Shape> roots, SKPoint? at = null)
 	{
 		float availableWidth = page.size_uom.Width * (1f - SvgPageMargin * 2f);
 		float availableHeight = page.size_uom.Height * (1f - SvgPageMargin * 2f);
@@ -242,8 +247,45 @@ public partial class MainForm
 		foreach (var b in bounds)
 			rowWidth += b.Width;
 
-		float x = page.page_origin.X + (page.size_uom.Width - rowWidth) * 0.5f;
-		float middle = page.page_origin.Y + page.size_uom.Height * 0.5f;
+		float left;
+		float middle;
+
+		if (at is { } point)
+		{
+			// Точка — середина первого рисунка, а не левый край ряда:
+			// при единственном файле он тогда ложится ровно под курсор,
+			// чего от перетаскивания и ждут.
+			left = point.X - bounds[0].Width * 0.5f;
+			middle = point.Y;
+
+			// Один файл ложится ровно туда, где отпустили клавишу, даже
+			// у самого обреза: о том и просили. Зажимается только ряд
+			// из нескольких — он тянется вправо и иначе ушёл бы с листа
+			// целыми рисунками, которых пользователь потом не найдёт.
+			if (roots.Count > 1)
+			{
+				float marginX = page.size_uom.Width * SvgPageMargin;
+				float marginY = page.size_uom.Height * SvgPageMargin;
+				float half = contentHeight * scale * 0.5f;
+
+				left = Clamp(
+					left,
+					page.page_origin.X + marginX,
+					page.page_origin.X + page.size_uom.Width - marginX - rowWidth);
+
+				middle = Clamp(
+					middle,
+					page.page_origin.Y + marginY + half,
+					page.page_origin.Y + page.size_uom.Height - marginY - half);
+			}
+		}
+		else
+		{
+			left = page.page_origin.X + (page.size_uom.Width - rowWidth) * 0.5f;
+			middle = page.page_origin.Y + page.size_uom.Height * 0.5f;
+		}
+
+		float x = left;
 
 		for (int i = 0; i < roots.Count; i++)
 		{
@@ -252,6 +294,15 @@ public partial class MainForm
 			x += bounds[i].Width + gap;
 		}
 	}
+
+	/// <summary>
+	/// Зажим в границы. Своя, а не Math.Clamp: там нижняя граница выше
+	/// верхней — это исключение, а здесь обычное дело. Ряд шириной
+	/// в целый лист не оставляет места для сдвига, и тогда он просто
+	/// встаёт по левому полю.
+	/// </summary>
+	private static float Clamp(float value, float min, float max)
+		=> max <= min ? min : MathF.Min(MathF.Max(value, min), max);
 
 	/// <summary>
 	/// Ужимает рисунок вместе с толщиной его линий.
