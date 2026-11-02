@@ -148,6 +148,7 @@ public partial class MainForm : Form
 		// После InitLanguage: кнопка добавляет свою подсказку сама,
 		// а исходные английские тексты к этому моменту уже запомнены.
 		InitThemeToggleButton();
+		InitSelectionFilterButton();
 
 		WinFormsTheme.Register(this);
 		ThemeImages.RegisterMainFormImages(this);

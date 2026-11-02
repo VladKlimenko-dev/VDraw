@@ -240,6 +240,16 @@ public sealed class DocumentFileDto
 	/// только на время сеанса.
 	/// </summary>
 	public List<CustomShapeDto> CustomShapes { get; set; } = new();
+
+	/// <summary>
+	/// Виды объектов, доступные для выделения, числом-набором флагов.
+	///
+	/// null в файлах, записанных до появления отбора: отсутствие поля
+	/// означает «доступно всё», и старые документы открываются как прежде.
+	/// Номер версии формата от этого не двигается — без поля файл читается
+	/// правильно.
+	/// </summary>
+	public int? SelectionFilter { get; set; }
 }
 
 public sealed class FillPatternDto

@@ -388,9 +388,15 @@ public sealed partial class MainView : SKGLControl
 
 		SelectionHelper.Clear(_interaction);
 
+		var filter = SelectionFilter.Of(CurrentPage.doc);
+
 		foreach (var shape in CurrentPage.Shapes)
 		{
 			if (shape is GuideLine || !shape.IsVisible || shape.IsLocked)
+				continue;
+
+			// Отбор по видам объектов — тот же, что и у рамки выделения.
+			if (!SelectionFilter.Allows(shape, filter))
 				continue;
 
 			SelectionHelper.Add(_interaction, shape);

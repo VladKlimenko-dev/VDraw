@@ -2480,6 +2480,8 @@ public sealed class MarqueeSelectionOperation : DragOperation
 		else
 			SelectionHelper.Clear(ctx);
 
+		var filter = SelectionFilter.Of(view.CurrentPage?.doc);
+
 		foreach (var s in view.GetShapesBackToFront())
 		{
 			// Направляющие рамкой не берутся.
@@ -2496,6 +2498,12 @@ public sealed class MarqueeSelectionOperation : DragOperation
 			// Прежде проверка центра брала и то и другое: при рамке-секущей
 			// это стало бы заметно сразу.
 			if (!s.IsVisible || s.IsLocked)
+				continue;
+
+			// Отбор по видам объектов. Проверяется до габаритов: у группы
+			// проверка обходит детей, и делать её для фигуры, в рамку
+			// не попавшей, незачем.
+			if (!SelectionFilter.Allows(s, filter))
 				continue;
 
 			var b = s.GetBounds();

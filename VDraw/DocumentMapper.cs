@@ -71,7 +71,8 @@ public static class DocumentMapper
 			PaperSizeUom = doc.size_uom,
 			DPI = doc.DPI,
 			DefaultPageOrientation = doc.Orientation,
-			ActivePageIndex = doc.ActivePage != null ? Math.Max(0, doc.pages.IndexOf(doc.ActivePage)) : 0
+			ActivePageIndex = doc.ActivePage != null ? Math.Max(0, doc.pages.IndexOf(doc.ActivePage)) : 0,
+			SelectionFilter = (int)doc.SelectionFilter
 		};
 
 		foreach (var page in doc.pages)
@@ -128,6 +129,12 @@ public static class DocumentMapper
 		doc.size_uom = dto.PaperSizeUom;
 		doc.DPI = dto.DPI;
 		doc.Orientation = dto.DefaultPageOrientation;
+
+		// Отсутствие поля означает «доступно всё»: так открываются файлы,
+		// записанные до появления отбора.
+		doc.SelectionFilter = dto.SelectionFilter.HasValue
+			? (SelectionKinds)dto.SelectionFilter.Value
+			: SelectionKinds.All;
 
 		doc.CustomShapes.Clear();
 

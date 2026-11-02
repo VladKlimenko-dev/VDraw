@@ -83,6 +83,16 @@ public sealed partial class Document : PaperFormatData
 	/// </summary>
 	public List<CustomShapeDefinition> CustomShapes { get; } = new();
 
+	/// <summary>
+	/// Какие виды объектов доступны для выделения.
+	///
+	/// Хранится в документе, а не в настройках приложения: отбор относится
+	/// к работе над конкретным чертежом. Отключив на время всё, кроме
+	/// размеров, пользователь не ждёт, что завтра в другом файле выделение
+	/// по-прежнему будет брать только их.
+	/// </summary>
+	public SelectionKinds SelectionFilter { get; set; } = SelectionKinds.All;
+
 	#region История действий
 
 	/// <summary>
