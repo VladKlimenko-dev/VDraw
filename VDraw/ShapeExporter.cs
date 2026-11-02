@@ -72,8 +72,8 @@ public static class ShapeExporter
 		{
 			MessageBox.Show(
 				owner as IWin32Window is Form f ? f : null,
-				"Select at least one shape to export.",
-				"Export",
+				L.T("Select at least one shape to export."),
+				L.T("Export"),
 				MessageBoxButtons.OK,
 				MessageBoxIcon.Information);
 
@@ -82,15 +82,15 @@ public static class ShapeExporter
 
 		using var sfd = new SaveFileDialog
 		{
-			Title = "Export selection",
-			Filter =
+			Title = L.T("Export selection"),
+			Filter = L.Filter(
 				"PNG image (*.png)|*.png|" +
 				"JPEG image (*.jpg)|*.jpg;*.jpeg|" +
 				"Bitmap (*.bmp)|*.bmp|" +
 				"SVG vector (*.svg)|*.svg|" +
 				"Animated GIF (*.gif)|*.gif|" +
 				"Enhanced metafile (*.emf)|*.emf|" +
-				"Windows metafile (*.wmf)|*.wmf",
+				"Windows metafile (*.wmf)|*.wmf"),
 			FilterIndex = 1,
 			AddExtension = true,
 			DefaultExt = "png",
@@ -151,8 +151,8 @@ public static class ShapeExporter
 		catch (Exception ex)
 		{
 			MessageBox.Show(
-				$"Failed to export selection.\r\n\r\n{ex.Message}",
-				"Export error",
+				L.T("Failed to export selection.\r\n\r\n{0}", ex.Message),
+				L.T("Export error"),
 				MessageBoxButtons.OK,
 				MessageBoxIcon.Error);
 

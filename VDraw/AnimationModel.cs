@@ -156,10 +156,18 @@ public readonly struct AnimValue
 	private static float Parse(string s)
 		=> float.TryParse(s, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float v) ? v : 0f;
 
-	/// <summary>Короткая запись значения для колонки дерева параметров.</summary>
+	/// <summary>
+	/// Короткая запись значения для колонки дерева параметров.
+	///
+	/// Единственный вызов — в AnimationPanel при отрисовке строки, то есть
+	/// на каждую перерисовку. Поэтому L.TIn здесь — это перевод в момент
+	/// показа, а не при создании: нигде, кроме экрана, результат не живёт.
+	/// Контекст нужен, потому что «on» и «off» сами по себе слишком общие
+	/// ключи: в другом месте они означали бы не «есть» и «нет».
+	/// </summary>
 	public string Format() => Kind switch
 	{
-		AnimValueKind.Bool => AsBool ? "on" : "off",
+		AnimValueKind.Bool => AsBool ? L.TIn("anim", "on") : L.TIn("anim", "off"),
 		AnimValueKind.Point => $"{A:0.##}; {B:0.##}",
 		AnimValueKind.Color => $"#{ToByte(D):X2}{ToByte(A):X2}{ToByte(B):X2}{ToByte(C):X2}",
 		_ => A.ToString("0.###")
@@ -186,7 +194,18 @@ public sealed class AnimParam
 	private readonly Action<AnimValue> _set;
 
 	public string Id { get; }
+
+	/// <summary>
+	/// Название параметра ПО-АНГЛИЙСКИ — оно же ключ словаря локализации.
+	///
+	/// Здесь не локализуется намеренно. Title переезжает в AnimTrack.Title,
+	/// а тот пишется в файл документа, поэтому локализованное название
+	/// попало бы в сохранённый файл и перестало бы совпадать с названиями
+	/// английской сборки. Перевод делается в момент показа —
+	/// в AnimationPanel, при отрисовке строки дерева.
+	/// </summary>
 	public string Title { get; }
+
 	public AnimValueKind Kind { get; }
 
 	public AnimParam(string id, string title, AnimValueKind kind, Func<AnimValue> get, Action<AnimValue> set)
@@ -236,7 +255,15 @@ public sealed class AnimParam
 public sealed class AnimParamNode
 {
 	public string Id { get; }
+
+	/// <summary>
+	/// Название группы или параметра по-английски: ключ словаря, а не
+	/// готовая к показу надпись. Переводит его AnimationPanel при
+	/// отрисовке строки — дерево собирается один раз под выделение
+	/// и смену языка само не переживёт.
+	/// </summary>
 	public string Title { get; }
+
 	public AnimParam? Param { get; }
 	public List<AnimParamNode> Children { get; } = new();
 
@@ -492,6 +519,13 @@ public static class AnimParamCatalog
 		}
 	}
 
+	/// <summary>
+	/// Названия узлов нумерованные, поэтому отдельного ключа словаря
+	/// у каждого нет: на кривой их бывают сотни. AnimationPanel при показе
+	/// ищет перевод шаблона — «Node {0}», «Node {0} ctrl in» и так далее —
+	/// и подставляет номер обратно. Здесь остаётся английская строка
+	/// с номером: именно она попадает в файл документа.
+	/// </summary>
 	private static void BuildCurveNodes(AnimParamNode g, CurveShape curve)
 	{
 		int count = Math.Min(curve.Nodes.Count, MaxNodes);

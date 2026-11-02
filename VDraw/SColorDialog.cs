@@ -82,6 +82,7 @@ public partial class SColorDialog : Form
 	{
 		InitializeComponent();
 		WinFormsTheme.Register(this);
+		Localization.Register(this);
 		ComponentResourceManager resources = new ComponentResourceManager(typeof(SColorDialog));
 		spb = new PictureBox[picture_boxes_x * picture_boxes_y];
 		for (int j = 0; j < picture_boxes_y; j++)

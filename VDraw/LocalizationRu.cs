@@ -29,8 +29,8 @@ internal static class LocalizationRu
 		["Save as...  (Ctrl+Shift+S)\r\nSaves under a new name and keeps working in the new file."] =
 			"Сохранить как...  (Ctrl+Shift+S)\r\nСохраняет под новым именем и продолжает работу в новом файле.",
 
-		["Import  (Ctrl+I)\r\nInserts shapes from a .vdr or pages from a .pdf into the current document, and adds .vdrs sets and Visio stencils to custom shapes."] =
-			"Импорт  (Ctrl+I)\r\nВставляет фигуры из .vdr или страницы из .pdf в текущий документ, " +
+		["Import  (Ctrl+I)\r\nInserts shapes from a .vdr or pages from a .pdf into the current document,\r\nand adds .vdrs sets and Visio stencils to custom shapes."] =
+			"Импорт  (Ctrl+I)\r\nВставляет фигуры из .vdr или страницы из .pdf в текущий документ,\r\n" +
 			"а наборы .vdrs и клипарты Visio добавляет в кастомные фигуры.",
 
 		["Import document  (Ctrl+I)\r\nInserts shapes from another .vdr into the current page. Paper settings are not imported."] =
@@ -300,7 +300,8 @@ internal static class LocalizationRu
 		["Actual dpi"] = "Реальное разрешение",
 		["Invert angle"] = "Внешний угол",
 		["Measure angle  (Shift+M)\r\nDefines two vectors, then places the value label. Click a straight segment to take it whole, or click two points."] =
-			"Измерить угол  (Shift+M)\r\nЗадаёт два вектора, затем положение подписи. Щелчок по прямому сегменту берёт его целиком, либо задайте две точки.",
+			"Измерить угол  (Shift+M)\r\nЗадаёт два вектора, затем положение подписи.\r\n"
+			+ "Щелчок по прямому сегменту берёт его целиком, либо задайте две точки.",
 		["Circle 2-points"] = "Окружность по 2 точкам",
 		["Circle 3-points"] = "Окружность по 3 точкам",
 		["Ellipse 3-points"] = "Эллипс по 3 точкам",
@@ -376,8 +377,8 @@ internal static class LocalizationRu
 		["Scale"] = "Масштаб",
 		["Horizontal"] = "По горизонтали",
 		["Vertical"] = "По вертикали",
-		["Front"] = "Спереди",
-		["Back"] = "Сзади",
+		["Front"] = "Основной",
+		["Back"] = "Фоновый",
 		["From"] = "От",
 		["To"] = "До",
 		["Edit"] = "Правка",
@@ -498,6 +499,570 @@ internal static class LocalizationRu
 		["Stencil shapes are not saved with the document and are kept for this session only."] =
 			"Фигуры клипарта не сохраняются с документом и живут только до конца сеанса.",
 		["no shapes found"] = "фигур не найдено",
+
+		#endregion
+
+		#region Вкладка сочетаний клавиш
+
+		["Shortcuts"] = "Сочетания клавиш",
+		["Reset keys to default"] = "Сбросить сочетания",
+		["Press keys..."] = "Нажмите клавиши...",
+		["none"] = "нет",
+		["Measurement default digits"] = "Знаков после точки в измерениях",
+		["Selection filter"] = "Фильтр выделения",
+		["Light / dark theme"] = "Светлая / тёмная тема",
+
+		["Click a shortcut and press the new key combination.\r\n"
+			+ "Esc cancels, Delete clears. Duplicates are shown in red.\r\n"
+			+ "The mouse buttons at the end of the list are a reference and cannot be changed."] =
+			"Щёлкните сочетание и нажмите новые клавиши.\r\n"
+			+ "Esc — отмена, Delete — очистить. Совпадения показаны красным.\r\n"
+			+ "Кнопки мыши в конце списка — справка, они не настраиваются.",
+
+		// Группы действий
+		["Tools"] = "Инструменты",
+		["Arrange"] = "Расположение",
+		["Boolean operations"] = "Логические операции",
+		// «Сдвиг», а не «Сдвиг стрелками»: этой же строкой подписан шаг
+		// отмены, а он получается и от перетаскивания мышью.
+		["Nudge"] = "Сдвиг",
+		["Curve nodes"] = "Узлы кривой",
+
+		// Действия: файл и правка
+		["New document"] = "Новый документ",
+		["Open document"] = "Открыть документ",
+		["Export selection"] = "Экспорт выделенного",
+		["Undo"] = "Отменить",
+		["Redo"] = "Повторить",
+		["Copy formatting"] = "Копировать формат",
+		["Paste formatting"] = "Применить формат",
+		["Select all"] = "Выделить всё",
+		["Delete selected"] = "Удалить выделенное",
+
+		// Действия: инструменты
+		["Select"] = "Выбор",
+		["Straight lines"] = "Прямые линии",
+		["Edit nodes"] = "Правка узлов",
+		["Regular polygon"] = "Правильный многоугольник",
+		["Free polygon"] = "Произвольный многоугольник",
+		["Cut with a straight line"] = "Разрез прямой",
+		["Cut with a curve"] = "Разрез кривой",
+		["Circle"] = "Окружность",
+		["Ellipse"] = "Эллипс",
+		["Image editing mode"] = "Режим правки изображения",
+
+		// Действия: расположение
+		["Bring to front"] = "На передний план",
+		["Send to back"] = "На задний план",
+		["Flip horizontally"] = "Отразить по горизонтали",
+		["Flip vertically"] = "Отразить по вертикали",
+		["Rotate 90 clockwise"] = "Повернуть на 90 по часовой",
+		["Rotate 90 counter-clockwise"] = "Повернуть на 90 против часовой",
+
+		// Действия: логические операции
+		["Union"] = "Объединение",
+		["Subtract"] = "Вычитание",
+		["Intersect"] = "Пересечение",
+		["Exclude"] = "Исключение",
+		["Combine"] = "Соединение",
+
+		// Действия: сдвиг
+		["Nudge left"] = "Сдвиг влево",
+		["Nudge right"] = "Сдвиг вправо",
+		["Nudge up"] = "Сдвиг вверх",
+		["Nudge down"] = "Сдвиг вниз",
+		["Nudge left, large step"] = "Сдвиг влево, крупный шаг",
+		["Nudge right, large step"] = "Сдвиг вправо, крупный шаг",
+		["Nudge up, large step"] = "Сдвиг вверх, крупный шаг",
+		["Nudge down, large step"] = "Сдвиг вниз, крупный шаг",
+
+		// Действия: узлы
+		["Straight node"] = "Прямой узел",
+		["Smooth node"] = "Гладкий узел",
+		["Cusp node"] = "Угловой узел",
+		["Merge nodes"] = "Объединить узлы",
+		["Split node"] = "Разделить узел",
+
+		// Действия: вид
+		["Zoom to all shapes"] = "Показать все фигуры",
+		["Fit page"] = "Вписать страницу",
+		["Zoom to selection"] = "Показать выделенное",
+		["Guides"] = "Направляющие",
+
+		#endregion
+
+		#region Справка по кнопкам мыши
+
+		["Mouse: view"] = "Мышь: вид",
+		["Mouse: selection"] = "Мышь: выделение",
+		["Mouse: moving and resizing"] = "Мышь: перемещение и размер",
+		["Mouse: shape tools"] = "Мышь: инструменты фигур",
+		["Mouse: curve nodes"] = "Мышь: узлы кривой",
+		["Mouse: image editing"] = "Мышь: правка изображения",
+
+		// Жесты
+		["Wheel"] = "Колесо",
+		["Middle button"] = "Средняя кнопка",
+		["Drag from a ruler"] = "Протяжка с линейки",
+		["Left button"] = "Левая кнопка",
+		["Right button"] = "Правая кнопка",
+		["Ctrl + left"] = "Ctrl + левая",
+		["Frame, left to right"] = "Рамка слева направо",
+		["Frame, right to left"] = "Рамка справа налево",
+		["Ctrl + frame"] = "Ctrl + рамка",
+		["Centre handle"] = "Центральный маркер",
+		["Left drag"] = "Протяжка левой",
+		["Ctrl + drag"] = "Ctrl + протяжка",
+		["Alt + drag"] = "Alt + протяжка",
+		["Handle drag"] = "Протяжка маркером",
+		["Ctrl + handle"] = "Ctrl + маркер",
+		["Shift + handle"] = "Shift + маркер",
+		["Rotation handle"] = "Маркер поворота",
+		["Right button, polygon"] = "Правая, многоугольник",
+		["Right button, other tools"] = "Правая, другие инструменты",
+		["Ctrl, end of a measurement"] = "Ctrl, конец измерения",
+		["Shift, cutting line"] = "Shift, линия разреза",
+		["Double click"] = "Двойной щелчок",
+		["Double click on a segment"] = "Двойной щелчок по сегменту",
+		["Left button on a node"] = "Левая по узлу",
+		["Ctrl + node"] = "Ctrl + узел",
+		["Drag over the curve"] = "Протяжка по кривой",
+		["Control point"] = "Рычаг узла",
+		["Shift + control point"] = "Shift + рычаг узла",
+		["Left with a brush"] = "Левая кистью",
+		["Right with a brush"] = "Правая кистью",
+		["Left with the fill"] = "Левая заливкой",
+		["Right with the fill"] = "Правая заливкой",
+		["Left with the eraser"] = "Левая ластиком",
+		["Left, selection"] = "Левая, выделение",
+		["Ctrl + selection"] = "Ctrl + выделение",
+
+		// Что делают
+		["Zoom in and out around the pointer"] = "Масштаб вокруг курсора",
+		["Pans the view"] = "Панорамирование вида",
+		["Pulls out a guide"] = "Вытягивает направляющую",
+		["Selects the shape under the pointer"] = "Выделяет фигуру под курсором",
+		["Adds the shape to the selection"] = "Добавляет фигуру к выделенному",
+		["Takes only what fits inside entirely"] = "Берёт только вошедшее целиком",
+		["Takes everything the frame touches"] = "Берёт всё, чего коснулась рамка",
+		["Adds the framed shapes to the selection"] = "Добавляет обведённое к выделенному",
+		["Switches resizing and rotating"] = "Переключает размер и поворот",
+		["Shape context menu"] = "Контекстное меню фигуры",
+		["Moves the selection"] = "Перемещает выделенное",
+		["Locks the movement to one axis"] = "Держит перемещение по одной оси",
+		["Turns snapping off"] = "Отключает привязки",
+		["Resizes"] = "Меняет размер",
+		["Keeps the proportions"] = "Сохраняет пропорции",
+		["Resizes around the centre"] = "Меняет размер от центра",
+		["Rotates around the pivot"] = "Поворачивает вокруг центра вращения",
+		["Places the next point"] = "Ставит очередную точку",
+		["Finishes the contour"] = "Завершает контур",
+		["Cancels what has been started"] = "Отменяет начатое",
+		["Does not attach the end to a shape"] = "Не привязывает конец к фигуре",
+		["Locks the line to an axis"] = "Держит линию по оси",
+		["Enters node editing"] = "Входит в режим узлов",
+		["Inserts a node, keeping the curve"] = "Вставляет узел, не меняя кривую",
+		["Leaves that node alone selected"] = "Оставляет выбранным один узел",
+		["Adds the node to the selected ones, or drops it"] =
+			"Добавляет узел к выбранным или снимает",
+		["Frames the nodes"] = "Выделяет узлы рамкой",
+		["Bends the curve at the node"] = "Изгибает кривую у узла",
+		["Mirrors the opposite handle"] = "Зеркалит противоположный рычаг",
+		["Opens image editing"] = "Открывает правку изображения",
+		["Paints with the foreground colour"] = "Рисует основным цветом",
+		["Paints with the background colour"] = "Рисует фоновым цветом",
+		["Fills with the foreground colour"] = "Заливает основным цветом",
+		["Fills with the background colour"] = "Заливает фоновым цветом",
+		["Erases. The right button does not"] = "Стирает. Правая кнопка — нет",
+		["Selects pixels, dropping the previous ones"] = "Выделяет пиксели, сбрасывая прежнее",
+		["Adds the pixels to the selection"] = "Добавляет пиксели к выделенному",
+
+		#endregion
+
+		#region Остатки дизайнера
+
+		["Ok"] = "ОК",
+		["Help"] = "Справка",
+		["Group"] = "Группировать",
+		["Ungroup"] = "Разгруппировать",
+		["Title"] = "Заголовок",
+		["Units"] = "Единицы",
+		["Format"] = "Формат",
+		["About ..."] = "О программе ...",
+		["User manual"] = "Руководство пользователя",
+		["Export parameters"] = "Параметры экспорта",
+		["Orientation"] = "Ориентация",
+		["Zero X"] = "Нуль X",
+		["Zero Y"] = "Нуль Y",
+		["Units:"] = "Единицы:",
+		["Shape:"] = "Фигура:",
+		["Size:"] = "Размер:",
+		["Tolerance:"] = "Допуск:",
+		["Strength:"] = "Сила:",
+		["Smooth:"] = "Сглаживание:",
+		["Cursor"] = "Курсор",
+		["Use page resolution"] = "Разрешение страницы",
+		["Size lock"] = "Фиксация размера",
+		["Status"] = "Состояние",
+
+		#endregion
+
+		#region Диалоги и сообщения
+
+		["Open VDraw document"] = "Открыть документ VDraw",
+		["Save VDraw document"] = "Сохранить документ VDraw",
+		["Select image"] = "Выбрать изображение",
+		["Copy to clipboard"] = "Копирование в буфер",
+		["Image editing"] = "Правка изображения",
+		["Select Image first."] = "Сначала выберите изображение.",
+		["Could not load image."] = "Не удалось загрузить изображение.",
+
+		["Save document"] = "Сохранение документа",
+		["The document has unsaved changes.\r\nDo you want to save it before closing?"] =
+			"В документе есть несохранённые изменения.\r\nСохранить его перед закрытием?",
+
+		["Save error"] = "Ошибка сохранения",
+		["Open error"] = "Ошибка открытия",
+		["Export error"] = "Ошибка экспорта",
+
+		["Failed to save document.\r\n\r\n{0}"] = "Не удалось сохранить документ.\r\n\r\n{0}",
+		["Failed to open document.\r\n\r\n{0}"] = "Не удалось открыть документ.\r\n\r\n{0}",
+		["Failed to import document.\r\n\r\n{0}\r\n{1}"] =
+			"Не удалось импортировать документ.\r\n\r\n{0}\r\n{1}",
+		["Failed to import PDF.\r\n\r\n{0}"] = "Не удалось импортировать PDF.\r\n\r\n{0}",
+		["Failed to export selection.\r\n\r\n{0}"] = "Не удалось экспортировать выделенное.\r\n\r\n{0}",
+		["Select at least one shape to export."] = "Выделите хотя бы одну фигуру для экспорта.",
+
+		["User manual not found.\r\n\r\nExpected file:\r\n{0}"] =
+			"Руководство пользователя не найдено.\r\n\r\nОжидался файл:\r\n{0}",
+		["Could not open the user manual.\r\n\r\n{0}\r\n\r\n{1}"] =
+			"Не удалось открыть руководство пользователя.\r\n\r\n{0}\r\n\r\n{1}",
+
+		["About application"] = "О программе",
+		["Version {0}"] = "Версия {0}",
+		["Build date: {0}"] = "Дата сборки: {0}",
+		["Author: {0}"] = "Автор: {0}",
+		["Description:"] = "Описание:",
+		["This computer program was created for 2D vector graphics, "
+			+ "image editing and animation."] =
+			"Программа создана для работы с двумерной векторной графикой, "
+			+ "правки изображений и анимации.",
+		["Any questions or suggestion for improvement can be sent "
+			+ "to email address: {0}"] =
+			"Вопросы и предложения по улучшению можно присылать "
+			+ "на адрес: {0}",
+
+		["Color picker"] = "Выбор цвета",
+		["Add"] = "Добавить",
+		["Create new document"] = "Создать документ",
+
+		["VDraw could not start."] = "VDraw не смог запуститься.",
+		["Details have been written to the file:"] = "Подробности записаны в файл:",
+
+		#endregion
+
+		#region Печать
+
+		["Printer"] = "Принтер",
+		["Paper:"] = "Бумага:",
+		["Properties..."] = "Свойства...",
+		["Page range"] = "Диапазон страниц",
+		["All pages"] = "Все страницы",
+		["Current page"] = "Текущая страница",
+		["Pages:"] = "Страницы:",
+		["Copies"] = "Копии",
+		["Number of copies:"] = "Число копий:",
+		["Collate"] = "Разбирать по копиям",
+		["Layout"] = "Разметка",
+		["Portrait"] = "Книжная",
+		["Landscape"] = "Альбомная",
+		["Scale:"] = "Масштаб:",
+		["Fit to page"] = "Вписать в лист",
+		["Actual size"] = "Реальный размер",
+		["Centre on page"] = "По центру листа",
+		["Print page background"] = "Печатать фон страницы",
+		["Show printer margins"] = "Показывать поля принтера",
+
+		// «Увеличение», а не «Масштаб»: масштабом здесь уже назван
+		// пересчёт чертежа под лист, а это — увеличение предпросмотра.
+		["Zoom:"] = "Увеличение:",
+		["Fit"] = "Вписать",
+
+		["Page {0} of {1}"] = "Страница {0} из {1}",
+		["Print error"] = "Ошибка печати",
+		["Failed to print.\r\n\r\n{0}"] = "Не удалось напечатать.\r\n\r\n{0}",
+		["Nothing to print: the page range is empty."] =
+			"Печатать нечего: диапазон страниц пуст.",
+
+		["mm"] = "мм",
+
+		#endregion
+
+		#region Импорт PDF: выбор страниц
+
+		["Import PDF — select pages"] = "Импорт PDF — выбор страниц",
+		["Each page on its own sheet"] = "Каждую страницу на отдельный лист",
+		["All"] = "Все",
+		["Select at least one page."] = "Выберите хотя бы одну страницу.",
+		["The page will be inserted into the current sheet."] =
+			"Страница будет вставлена в текущий лист.",
+		["Sheets to be created: {0}."] = "Будет создано листов: {0}.",
+		["All {0} pages will be placed on the current sheet, one on top of another."] =
+			"Все {0} страницы лягут в текущий лист друг поверх друга.",
+
+		#endregion
+
+		#region Фильтры файловых диалогов
+
+		// Ключ — подпись целиком, вместе со списком расширений в скобках:
+		// он виден пользователю, см. Localization.Filter.
+		["All files (*.*)"] = "Все файлы (*.*)",
+		["All Files"] = "Все файлы",
+		["VDraw document (*.vdr)"] = "Документ VDraw (*.vdr)",
+		["JSON files (*.json)"] = "Файлы JSON (*.json)",
+		["PDF document (*.pdf)"] = "Документ PDF (*.pdf)",
+		["VDraw shapes (*.vdrs)"] = "Фигуры VDraw (*.vdrs)",
+		["Images"] = "Изображения",
+		["Image Files"] = "Файлы изображений",
+		["Images (*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.webp)"] =
+			"Изображения (*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.webp)",
+		["PNG image (*.png)"] = "Изображение PNG (*.png)",
+		["JPEG image (*.jpg)"] = "Изображение JPEG (*.jpg)",
+		["Bitmap (*.bmp)"] = "Растр BMP (*.bmp)",
+		["SVG vector (*.svg)"] = "Вектор SVG (*.svg)",
+		["Animated GIF (*.gif)"] = "Анимированный GIF (*.gif)",
+		["Enhanced metafile (*.emf)"] = "Метафайл EMF (*.emf)",
+		["Windows metafile (*.wmf)"] = "Метафайл WMF (*.wmf)",
+		["Visio drawing or stencil (*.vsdx;*.vsdm;*.vss;*.vssx;*.vssm;*.vsx;*.vdx)"] =
+			"Чертёж или клипарт Visio (*.vsdx;*.vsdm;*.vss;*.vssx;*.vssm;*.vsx;*.vdx)",
+		["All supported (*.vdr;*.json;*.pdf;*.vdrs;*.vss;*.vssx;*.png;*.jpg;*.bmp)"] =
+			"Все поддерживаемые (*.vdr;*.json;*.pdf;*.vdrs;*.vss;*.vssx;*.png;*.jpg;*.bmp)",
+
+		#endregion
+
+		#region Шаги отмены
+
+		// Эти строки показываются в подсказках кнопок «отменить» и
+		// «повторить»: «Отменить: Создать фигуру».
+		["Undo: {0}"] = "Отменить: {0}",
+		["Redo: {0}"] = "Повторить: {0}",
+
+		["Create shape"] = "Создать фигуру",
+		["Delete shape"] = "Удалить фигуру",
+		["Delete shapes"] = "Удалить фигуры",
+		["Select and move"] = "Выделить и переместить",
+		["Change selection"] = "Изменить выделение",
+		["Clear selection"] = "Снять выделение",
+		["Add transform"] = "Добавить преобразование",
+		["Boolean operation"] = "Логическая операция",
+		["Line color"] = "Цвет линии",
+		["Fill color"] = "Цвет заливки",
+		["Text binding"] = "Привязка текста",
+		["Transform binding"] = "Привязка преобразования",
+		["Link anchor"] = "Привязать к фигуре",
+
+		["Create guide"] = "Создать направляющую",
+		["Delete guide"] = "Удалить направляющую",
+
+		["Add page"] = "Добавить лист",
+		["Delete page"] = "Удалить лист",
+		["Rename page"] = "Переименовать лист",
+		["Reorder pages"] = "Переставить листы",
+		["Paper format"] = "Формат листа",
+		["Page width"] = "Ширина листа",
+		["Page height"] = "Высота листа",
+		["Page orientation"] = "Ориентация листа",
+		["Page units"] = "Единицы листа",
+		["Page origin"] = "Начало координат листа",
+		["Page grid"] = "Сетка листа",
+		["Print borders"] = "Поля печати",
+
+		["Change image selection"] = "Изменить выделение на изображении",
+		["Delete selection"] = "Удалить выделенное",
+		["Lift selection"] = "Поднять выделенное",
+		["Image adjustments"] = "Правка изображения",
+
+		["Set key"] = "Поставить ключ",
+		["Set keys"] = "Поставить ключи",
+		["Delete key"] = "Удалить ключ",
+		["Delete keys"] = "Удалить ключи",
+		["Move key"] = "Переместить ключ",
+		["Move keys"] = "Переместить ключи",
+
+		#endregion
+
+		#region Каталоги: штрихи, глифы, форматы
+
+		["Solid"] = "Сплошная",
+		["Dash"] = "Штрих",
+		["Dot"] = "Точка",
+		["Dash Dot"] = "Штрих-точка",
+
+		["None"] = "Нет",
+		["Arrow"] = "Стрелка",
+		["Triangle arrow"] = "Треугольная стрелка",
+		["Engineer arrow"] = "Чертёжная стрелка",
+		["Empty arrow"] = "Пустая стрелка",
+		["Square"] = "Квадрат",
+		["Square filled"] = "Квадрат с заливкой",
+		["Diamond"] = "Ромб",
+		["Diamond filled"] = "Ромб с заливкой",
+
+		["Custom"] = "Свой",
+
+		#endregion
+
+		#region Палитра цветов
+
+		// Подсказки на плитках палитры. Имена остаются английскими ключами
+		// в самой таблице цветов, перевод берётся при показе подсказки.
+		["Transparent"] = "Прозрачный",
+		["Black"] = "Чёрный",
+		["White"] = "Белый",
+		["Red"] = "Красный",
+		["Green"] = "Зелёный",
+		["Blue"] = "Синий",
+
+		["Gray 10%"] = "Серый 10%",
+		["Gray 20%"] = "Серый 20%",
+		["Gray 25%"] = "Серый 25%",
+		["Gray 30%"] = "Серый 30%",
+		["Gray 40%"] = "Серый 40%",
+		["Gray 50%"] = "Серый 50%",
+		["Gray 60%"] = "Серый 60%",
+		["Gray 70%"] = "Серый 70%",
+		["Gray 75%"] = "Серый 75%",
+		["Gray 80%"] = "Серый 80%",
+		["Gray 90%"] = "Серый 90%",
+
+		["Pink"] = "Розовый",
+		["Light coral"] = "Светло-коралловый",
+		["Salmon"] = "Лососевый",
+		["Coral"] = "Коралловый",
+		["Crimson"] = "Малиновый",
+		["Firebrick"] = "Кирпичный",
+		["Dark red"] = "Тёмно-красный",
+
+		["Peach"] = "Персиковый",
+		["Sand"] = "Песочный",
+		["Light orange"] = "Светло-оранжевый",
+		["Orange"] = "Оранжевый",
+		["Dark orange"] = "Тёмно-оранжевый",
+		["Chocolate"] = "Шоколадный",
+		["Brown"] = "Коричневый",
+
+		["Cream"] = "Кремовый",
+		["Light yellow"] = "Светло-жёлтый",
+		["Yellow"] = "Жёлтый",
+		["Gold"] = "Золотой",
+		["Amber"] = "Янтарный",
+		["Dark gold"] = "Тёмно-золотой",
+		["Olive"] = "Оливковый",
+
+		["Mint"] = "Мятный",
+		["Light green"] = "Светло-зелёный",
+		["Lime"] = "Лаймовый",
+		["Grass"] = "Травяной",
+		["Sea green"] = "Морской зелёный",
+		["Forest green"] = "Лесной зелёный",
+		["Dark green"] = "Тёмно-зелёный",
+
+		["Ice"] = "Ледяной",
+		["Aquamarine"] = "Аквамариновый",
+		["Turquoise"] = "Бирюзовый",
+		["Cyan"] = "Циан",
+		["Light sea green"] = "Светлый морской зелёный",
+		["Teal"] = "Бирюзово-зелёный",
+		["Dark teal"] = "Тёмный бирюзово-зелёный",
+
+		["Light blue"] = "Светло-синий",
+		["Sky blue"] = "Небесно-голубой",
+		["Cornflower"] = "Васильковый",
+		["Steel blue"] = "Стальной синий",
+		["Azure"] = "Лазурный",
+		["Royal blue"] = "Королевский синий",
+		["Navy"] = "Тёмно-синий",
+
+		["Lavender"] = "Лавандовый",
+		["Thistle"] = "Чертополоховый",
+		["Orchid"] = "Орхидея",
+		["Violet"] = "Фиолетовый",
+		["Magenta"] = "Маджента",
+		["Purple"] = "Пурпурный",
+		["Indigo"] = "Индиго",
+
+		#endregion
+
+		#region Панель анимации
+
+		["Frame"] = "Кадр",
+		["Frames"] = "Кадров",
+		["FPS"] = "Кадр/с",
+		["Parameter"] = "Параметр",
+
+		// Значение логического параметра в колонке дерева. С уточнением
+		// контекста: «on» и «off» сами по себе слишком общие ключи.
+		["anim|on"] = "есть",
+		["anim|off"] = "нет",
+
+		// Названия анимируемых параметров. Шаблоны с {0} — для подписей
+		// с номером: узлов у кривой бывают сотни, и ключа на каждый
+		// в словаре не держат. {0} в переводе обязателен, иначе шаблон
+		// не применяется и остаётся английское название.
+		["Scale X"] = "Масштаб X",
+		["Scale Y"] = "Масштаб Y",
+		["Skew X"] = "Наклон X",
+		["Skew Y"] = "Наклон Y",
+		["Visible"] = "Видимость",
+		["Nodes"] = "Узлы",
+		["Center"] = "Центр",
+		["Point {0}"] = "Точка {0}",
+		["Rotation, rad"] = "Поворот, рад",
+		["Extension"] = "Вынос",
+		["Text offset"] = "Смещение текста",
+		["Node {0}"] = "Узел {0}",
+		["Node {0} ctrl in"] = "Узел {0}, рычаг входа",
+		["Node {0} ctrl out"] = "Узел {0}, рычаг выхода",
+
+		["Pattern length"] = "Длина штриха",
+		["Start glyph size"] = "Размер начального глифа",
+		["End glyph size"] = "Размер конечного глифа",
+
+		["Gradient color {0}"] = "Цвет градиента {0}",
+		["Angle"] = "Угол",
+		["Start point"] = "Начальная точка",
+		["End point"] = "Конечная точка",
+		["Pattern front"] = "Основной цвет узора",
+		["Pattern back"] = "Фоновый цвет узора",
+		["Gradient stops"] = "Точки градиента",
+		["Stop {0} offset"] = "Точка {0}: положение",
+		["Stop {0} color"] = "Точка {0}: цвет",
+
+		["Shadow"] = "Тень",
+		["Center offset"] = "Смещение центра",
+		["Size vector"] = "Вектор размера",
+
+		["Start opacity"] = "Начальная плотность",
+		["End opacity"] = "Конечная плотность",
+		["Start offset"] = "Начальное смещение",
+		["End offset"] = "Конечное смещение",
+
+		["Morthing"] = "Морфинг",
+		["Bias"] = "Смещение",
+
+		#endregion
+
+		#region Панель свойств
+
+		["No object selected"] = "Объект не выбран",
+		["Fill intersection gaps"] = "Заполнять просветы на пересечениях",
+		["Stop color"] = "Цвет точки",
+		["Clear"] = "Очистить",
+		["Load texture"] = "Загрузить текстуру",
+		["Text inside shape"] = "Текст внутри фигуры",
+		["Text along path"] = "Текст по контуру",
+		["Tangent"] = "По касательной",
+		["Reset"] = "Сбросить",
 
 		#endregion
 	};

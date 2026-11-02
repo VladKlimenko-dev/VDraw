@@ -133,7 +133,18 @@ public sealed class AnimIconButton : SkControl
 
 		if (hasText)
 		{
-			float textWidth = SkTextHelper.Measure(Text, FontSize);
+			// Перевод подписи — здесь, а не в Text при создании кнопки.
+			// Text остаётся английским ключом: он назначается один раз
+			// в поле-инициализаторе, а SkControl не участвует в обходе
+			// дерева контролов, который переводит окно после смены языка,
+			// — переведённое при создании значение сменить было бы нечем.
+			// Отрисовка же вызывается на каждый Paint, то есть смену языка
+			// переживает сама.
+			string caption = L.T(Text);
+
+			// Замер — по той же строке, что рисуется: разойдись они,
+			// и подпись уехала бы мимо значка.
+			float textWidth = SkTextHelper.Measure(caption, FontSize);
 			float total = iconSize + 6f + textWidth;
 			float left = r.MidX - total * 0.5f;
 
@@ -142,7 +153,7 @@ public sealed class AnimIconButton : SkControl
 			var metrics = SkTextHelper.GetMetrics(FontSize);
 			float baseline = r.MidY + (metrics.Ascent - metrics.Descent) * 0.5f;
 
-			SkTextHelper.DrawLeft(canvas, Text, left + iconSize + 6f, baseline, FontSize, color);
+			SkTextHelper.DrawLeft(canvas, caption, left + iconSize + 6f, baseline, FontSize, color);
 			return;
 		}
 
@@ -436,7 +447,13 @@ public sealed class AnimationPanel : Control
 		AllowDecimal = false
 	};
 
-	/// <summary>Запись текущих параметров выделенных фигур в ключ.</summary>
+	/// <summary>
+	/// Запись текущих параметров выделенных фигур в ключ.
+	///
+	/// В Text лежит английский текст: он же ключ словаря. Переводится он
+	/// при отрисовке в AnimIconButton.DrawSelf — иначе подпись осталась бы
+	/// на языке, который был при создании панели.
+	/// </summary>
 	public readonly AnimIconButton a_set_key = new() { Name = "a_set_key", Icon = AnimIcon.Key, Text = "Set key" };
 
 	/// <summary>Режим выделения участка кадров для приближения.</summary>
@@ -995,6 +1012,18 @@ public sealed class AnimationPanel : Control
 	private float _framesLabelX;
 	private float _fpsLabelX;
 
+	// Подписи тулбара вынесены в постоянные, потому что каждая нужна
+	// ДВАЖДЫ: по ней считается место под неё в ArrangeUi и ею же рисуется
+	// надпись в DrawToolbar. Два литерала на одну надпись расходятся при
+	// первой же правке, и русский текст наезжал бы на числовое поле.
+	// Сами строки остаются английскими: это ключи словаря, а L.T
+	// вызывается в обоих местах по месту употребления.
+	private const string FrameLabel = "Frame";
+	private const string FramesLabel = "Frames";
+	private const string FpsLabel = "FPS";
+	private const string ParameterLabel = "Parameter";
+	private const string ValueLabel = "Value";
+
 	private void ArrangeUi()
 	{
 		_root.Bounds = new SKRect(0, 0, Width, Height);
@@ -1013,25 +1042,33 @@ public sealed class AnimationPanel : Control
 
 		x += 14f;
 		_frameLabelX = x;
-		x += SkTextHelper.Measure("Frame", FontRow) + 8f;
+		x += SkTextHelper.Measure(L.T(FrameLabel), FontRow) + 8f;
 
 		a_current_frame_nud.Bounds = new SKRect(x, y, x + 90f, y + ButtonHeight);
 		x += 90f + 12f;
 
 		_framesLabelX = x;
-		x += SkTextHelper.Measure("Frames", FontRow) + 8f;
+		x += SkTextHelper.Measure(L.T(FramesLabel), FontRow) + 8f;
 
 		a_frames_nud.Bounds = new SKRect(x, y, x + 90f, y + ButtonHeight);
 		x += 90f + 12f;
 
 		_fpsLabelX = x;
-		x += SkTextHelper.Measure("FPS", FontRow) + 8f;
+		x += SkTextHelper.Measure(L.T(FpsLabel), FontRow) + 8f;
 
 		a_fps_nud.Bounds = new SKRect(x, y, x + 84f, y + ButtonHeight);
 		x += 84f + 14f;
 
-		a_set_key.Bounds = new SKRect(x, y, x + 120f, y + ButtonHeight);
-		x += 120f + 6f;
+		// Ширина кнопки — от переведённой подписи, а не постоянная:
+		// «Поставить ключ» в полтора раза длиннее «Set key» и в 120
+		// точках не поместился бы. Прежние 120 остаются как нижняя
+		// граница, чтобы на английском тулбар выглядел как раньше.
+		float setKeyWidth = MathF.Max(
+			120f,
+			SkTextHelper.Measure(L.T(a_set_key.Text), a_set_key.FontSize) + 44f);
+
+		a_set_key.Bounds = new SKRect(x, y, x + setKeyWidth, y + ButtonHeight);
+		x += setKeyWidth + 6f;
 
 		a_zoom_but.Bounds = new SKRect(x, y, x + 36f, y + ButtonHeight);
 
@@ -1784,9 +1821,10 @@ public sealed class AnimationPanel : Control
 		var metrics = SkTextHelper.GetMetrics(FontRow);
 		float baseline = GripHeight + ToolbarHeight * 0.5f + (metrics.Ascent - metrics.Descent) * 0.5f;
 
-		SkTextHelper.DrawLeft(canvas, "Frame", _frameLabelX, baseline, FontRow, pal.TextMuted);
-		SkTextHelper.DrawLeft(canvas, "Frames", _framesLabelX, baseline, FontRow, pal.TextMuted);
-		SkTextHelper.DrawLeft(canvas, "FPS", _fpsLabelX, baseline, FontRow, pal.TextMuted);
+		// Те же постоянные, по которым ArrangeUi отвёл место под подписи.
+		SkTextHelper.DrawLeft(canvas, L.T(FrameLabel), _frameLabelX, baseline, FontRow, pal.TextMuted);
+		SkTextHelper.DrawLeft(canvas, L.T(FramesLabel), _framesLabelX, baseline, FontRow, pal.TextMuted);
+		SkTextHelper.DrawLeft(canvas, L.T(FpsLabel), _fpsLabelX, baseline, FontRow, pal.TextMuted);
 	}
 
 	private void DrawSplitter(SKCanvas canvas, SkUiPalette pal)
@@ -1829,17 +1867,21 @@ public sealed class AnimationPanel : Control
 		var hm = SkTextHelper.GetMetrics(FontSmall, true);
 		float headerBaseline = HeaderTop + HeaderHeight * 0.5f + (hm.Ascent - hm.Descent) * 0.5f;
 
-		SkTextHelper.DrawLeft(canvas, "Parameter", 8f, headerBaseline, FontSmall, pal.TextMuted, true);
+		SkTextHelper.DrawLeft(canvas, L.T(ParameterLabel), 8f, headerBaseline, FontSmall, pal.TextMuted, true);
 
 		if (_treeWidth > 240f)
 		{
-			float valueLabelWidth = SkTextHelper.Measure("Value", FontSmall, true);
-			SkTextHelper.DrawLeft(canvas, "Value", _treeWidth - 8f - valueLabelWidth, headerBaseline, FontSmall, pal.TextMuted, true);
+			// «Value» прижат к правому краю, поэтому замер задаёт положение
+			// надписи, а не только её место. Меряется ровно та строка,
+			// которая рисуется, иначе русская подпись уехала бы за край.
+			string valueLabel = L.T(ValueLabel);
+			float valueLabelWidth = SkTextHelper.Measure(valueLabel, FontSmall, true);
+			SkTextHelper.DrawLeft(canvas, valueLabel, _treeWidth - 8f - valueLabelWidth, headerBaseline, FontSmall, pal.TextMuted, true);
 		}
 
 		if (_rows.Count == 0)
 		{
-			SkTextHelper.DrawLeft(canvas, "No object selected", 8f, RowsTop + RowHeight, FontRow, pal.TextMuted);
+			SkTextHelper.DrawLeft(canvas, L.T("No object selected"), 8f, RowsTop + RowHeight, FontRow, pal.TextMuted);
 			return;
 		}
 
@@ -1955,7 +1997,9 @@ public sealed class AnimationPanel : Control
 
 		float titleLimit = _treeWidth - x - valueWidth - 16f;
 
-		SkTextHelper.DrawLeft(canvas, Ellipsize(row.Node.Title, FontRow, titleLimit, row.Depth == 0), x, baseline, FontRow, titleColor, row.Depth == 0);
+		// Перевод до Ellipsize, а не после: Ellipsize подрезает строку
+		// по замеренной ширине, и обрезать надо уже русский текст.
+		SkTextHelper.DrawLeft(canvas, Ellipsize(TitleText(row.Node.Title), FontRow, titleLimit, row.Depth == 0), x, baseline, FontRow, titleColor, row.Depth == 0);
 
 		if (titleLimit <= 20f || param == null)
 			return;
@@ -2022,6 +2066,58 @@ public sealed class AnimationPanel : Control
 
 		using var border = SkUiTheme.Stroke(pal.Border);
 		canvas.DrawRoundRect(rect, 3f, 3f, border);
+	}
+
+	/// <summary>
+	/// Название строки дерева для показа.
+	///
+	/// Перевод делается ЗДЕСЬ, а не в AnimParamCatalog при сборке дерева,
+	/// потому что AnimParam.Title уходит в AnimTrack.Title, а тот пишется
+	/// в файл документа (DocumentMapper). Переведи название при создании —
+	/// и в сохранённом файле окажется русская подпись, которую английская
+	/// сборка уже не узнает. В модели Title остаётся английским ключом.
+	///
+	/// Нумерованные названия («Node 3», «Stop 2 color») отдельными ключами
+	/// не покрыть: номер входит в строку, а узлов у кривой бывают сотни.
+	/// Поэтому у них ищется шаблон с «{0}» на месте числа, а само число
+	/// подставляется обратно. Шаблона в словаре нет — показывается
+	/// исходная строка, то есть английское название, а не «{0}».
+	/// </summary>
+	private static string TitleText(string title)
+	{
+		if (string.IsNullOrEmpty(title))
+			return string.Empty;
+
+		int first = -1;
+		int last = -1;
+
+		for (int i = 0; i < title.Length; i++)
+		{
+			if (!char.IsDigit(title[i]))
+				continue;
+
+			first = i;
+			last = i;
+
+			while (last + 1 < title.Length && char.IsDigit(title[last + 1]))
+				last++;
+
+			break;
+		}
+
+		if (first < 0)
+			return L.T(title);
+
+		string number = title.Substring(first, last - first + 1);
+		string pattern = title.Substring(0, first) + "{0}" + title.Substring(last + 1);
+		string translated = L.T(pattern);
+
+		// Replace, а не string.Format: подставлять приходится в строку
+		// из словаря, который ведётся руками, и одинокая фигурная скобка
+		// в переводе уронила бы отрисовку исключением формата.
+		return translated != pattern && translated.Contains("{0}")
+			? translated.Replace("{0}", number)
+			: L.T(title);
 	}
 
 	private static string Ellipsize(string text, float fontSize, float maxWidth, bool bold)

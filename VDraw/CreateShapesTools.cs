@@ -1362,8 +1362,8 @@ public sealed class ImageTool : IEditorTool
 
 		using var ofd = new OpenFileDialog
 		{
-			Title = "Select image",
-			Filter = "Image Files|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.webp|All Files|*.*"
+			Title = L.T("Select image"),
+			Filter = L.Filter("Image Files|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.webp|All Files|*.*")
 		};
 
 		if (ofd.ShowDialog() != DialogResult.OK)

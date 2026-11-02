@@ -490,7 +490,12 @@ public class ColorsPanel : Panel
 
 		_tooltipIndex = index;
 
-		_tooltip.SetToolTip(this, index >= 0 ? _colors[index].Tip : string.Empty);
+		// Перевод берётся здесь, а не при наполнении палитры: в Tip лежит
+		// английское имя цвета, и оно же служит ключом словаря. Переведи
+		// его в AddDefaultPalette — и подсказки застынут на языке запуска,
+		// потому что палитра собирается один раз, а эта панель рисует себя
+		// сама и в общий обход дерева контролов не попадает.
+		_tooltip.SetToolTip(this, index >= 0 ? L.T(_colors[index].Tip) : string.Empty);
 	}
 
 	protected override void OnMouseLeave(EventArgs e)

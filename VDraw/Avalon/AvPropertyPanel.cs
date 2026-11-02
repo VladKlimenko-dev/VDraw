@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 
 using Avalonia;
 using Avalonia.Controls;
@@ -333,7 +333,7 @@ public sealed class AvPropertyPanel : UserControl
 			var p = CreatePanel("General");
 			p.Content.Add(new AvLabel
 			{
-				Text = "No object selected",
+				Text = L.T("No object selected"),
 				Height = 20
 			});
 			_root.Add(p);
@@ -1397,7 +1397,7 @@ public sealed class AvPropertyPanel : UserControl
 			strokeType.SetItems(
 				StrokePatternLibrary.Items.Select(x => new AvDropDownItem(
 					x.Id,
-					x.DisplayName,
+					L.T(x.DisplayName),
 					x.PreviewBitmap)));
 
 			var current = StrokePatternLibrary.FindByPattern(shape.Stroke.Pattern);
@@ -2779,7 +2779,7 @@ public sealed class AvPropertyPanel : UserControl
 		{
 			var fillGaps = new AvCheckBox
 			{
-				Text = "Fill intersection gaps",
+				Text = L.T("Fill intersection gaps"),
 				Checked = cs.FillType == SKPathFillType.Winding
 			};
 
@@ -2919,7 +2919,7 @@ public sealed class AvPropertyPanel : UserControl
 
 					var color = new AvColorButton
 					{
-						Text = "Stop color",
+						Text = L.T("Stop color"),
 						Color = stopInfos.Count > 0 ? stopInfos[0].Color : SKColors.White
 					};
 
@@ -3238,8 +3238,8 @@ public sealed class AvPropertyPanel : UserControl
 					fw.ValueChanged = v => ResizePattern((int)v, fill.PatternHeight, "Pattern width");
 					fh.ValueChanged = v => ResizePattern(fill.PatternWidth, (int)v, "Pattern height");
 
-					var front = new AvColorButton { Text = "Front", Color = fill.PatternFrontColor };
-					var back = new AvColorButton { Text = "Back", Color = fill.PatternBackColor };
+					var front = new AvColorButton { Text = L.T("Front"), Color = fill.PatternFrontColor };
+					var back = new AvColorButton { Text = L.T("Back"), Color = fill.PatternBackColor };
 
 					front.Click = btn =>
 					{
@@ -3309,7 +3309,7 @@ public sealed class AvPropertyPanel : UserControl
 						InvalidateVisual();
 					};
 
-					var save = new AvButton { Text = "Save" };
+					var save = new AvButton { Text = L.T("Save") };
 					save.Click = () =>
 					{
 						var before = SnapshotPattern();
@@ -3348,7 +3348,7 @@ public sealed class AvPropertyPanel : UserControl
 						InvalidateVisual();
 					};
 
-					var clear = new AvButton { Text = "Clear" };
+					var clear = new AvButton { Text = L.T("Clear") };
 					clear.Click = () =>
 					{
 						var before = SnapshotPattern();
@@ -3479,11 +3479,11 @@ public sealed class AvPropertyPanel : UserControl
 						InvalidateVisual();
 					};
 
-					var load = new AvButton { Text = "Load texture" };
+					var load = new AvButton { Text = L.T("Load texture") };
 					load.Click = () =>
 					{
 						using var ofd = new OpenFileDialog();
-						ofd.Filter = "Images|*.png;*.jpg;*.jpeg;*.bmp;*.webp";
+						ofd.Filter = L.Filter("Images|*.png;*.jpg;*.jpeg;*.bmp;*.webp");
 
 						if (ofd.ShowDialog() != DialogResult.OK)
 							return;
@@ -4194,7 +4194,7 @@ public sealed class AvPropertyPanel : UserControl
 		p.Content.Add(new AvPropertyRow("char_spacing_row", L.T("Char spacing"), charSpace));
 		p.Content.Add(new AvPropertyRow("line_spacing_row", L.T("Line spacing"), lineSpace));
 
-		p.Content.Add(new AvLabel { Text = "Text inside shape", Bold = true, FontSize = 16 });
+		p.Content.Add(new AvLabel { Text = L.T("Text inside shape"), Bold = true, FontSize = 16 });
 
 		p.Content.Add(containerRow);
 		p.Content.Add(alignRow);
@@ -4205,7 +4205,7 @@ public sealed class AvPropertyPanel : UserControl
 		p.Content.Add(columnsRow);
 		p.Content.Add(columnGapRow);
 
-		p.Content.Add(new AvLabel { Text = "Text along path", Bold = true, FontSize = 16 });
+		p.Content.Add(new AvLabel { Text = L.T("Text along path"), Bold = true, FontSize = 16 });
 
 		p.Content.Add(alongRow);
 		p.Content.Add(axRow);
@@ -4322,7 +4322,7 @@ public sealed class AvPropertyPanel : UserControl
 		{
 			Checked = curve.FirstAnchor.TangentToEdge,
 			Enabled = curve.FirstAnchor.Enabled,
-			Text = "Tangent"
+			Text = L.T("Tangent")
 		};
 
 		var anchorLastNode = new AvCheckBox { Checked = curve.LastAnchor.Enabled };
@@ -4331,7 +4331,7 @@ public sealed class AvPropertyPanel : UserControl
 		{
 			Checked = curve.LastAnchor.TangentToEdge,
 			Enabled = curve.LastAnchor.Enabled,
-			Text = "Tangent"
+			Text = L.T("Tangent")
 		};
 
 		var firstNodeAnchorRow = new AvPropertyRow(
@@ -5426,13 +5426,13 @@ public sealed class AvPropertyPanel : UserControl
 
 			var applyBut = new AvButton
 			{
-				Text = "Apply",
+				Text = L.T("Apply"),
 				Width = 220, Height = 28
 			};
 
 			var resetBut = new AvButton
 			{
-				Text = "Reset",
+				Text = L.T("Reset"),
 				Width = 220, Height = 28
 			};
 

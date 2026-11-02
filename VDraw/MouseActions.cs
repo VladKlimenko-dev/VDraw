@@ -36,60 +36,59 @@ public static class MouseActions
 
 	public static IReadOnlyList<MouseAction> All { get; } = new List<MouseAction>
 	{
+		// Жесты названы коротко: столбец под них узкий, а подробность
+		// всё равно уходит в описание. «Протяжка» в русском длиннее
+		// английского drag, и длинные жесты там обрезались бы.
+
 		// MainView.OnMouseWheel, MainView.OnMouseDown (middle), CreateGuideOperation
-		M(View, "Wheel", "Zoom in and out. The point under the pointer stays put"),
-		M(View, "Middle button drag", "Pan the view"),
-		M(View, "Left drag from a ruler", "Pull out a guide"),
+		M(View, "Wheel", "Zoom in and out around the pointer"),
+		M(View, "Middle button", "Pans the view"),
+		M(View, "Drag from a ruler", "Pulls out a guide"),
 
 		// SelectTool.OnMouseDown, MarqueeSelectionOperation, MainView.OnMouseUp
-		M(Select, "Left click", "Select the shape under the pointer, dropping the rest"),
-		M(Select, "Ctrl + left click", "Add the shape to the selection"),
-		M(Select, "Left drag on empty space, left to right",
-			"Window frame: takes only the shapes that fit inside the frame entirely"),
-		M(Select, "Left drag on empty space, right to left",
-			"Crossing frame: takes every shape the frame touches"),
-		M(Select, "Ctrl + frame", "Keeps the current selection and adds the framed shapes"),
-		M(Select, "Left click on the centre handle",
-			"Switches the handles between resizing and rotating"),
-		M(Select, "Right click", "Shape context menu. Paste puts the content at the pointer"),
+		M(Select, "Left button", "Selects the shape under the pointer"),
+		M(Select, "Ctrl + left", "Adds the shape to the selection"),
+		M(Select, "Frame, left to right", "Takes only what fits inside entirely"),
+		M(Select, "Frame, right to left", "Takes everything the frame touches"),
+		M(Select, "Ctrl + frame", "Adds the framed shapes to the selection"),
+		M(Select, "Centre handle", "Switches resizing and rotating"),
+		M(Select, "Right button", "Shape context menu"),
 
 		// TransformSelectionOperation, MoveSelectionOperation, DragOperation
-		M(Move, "Left drag", "Move the selection"),
+		M(Move, "Left drag", "Moves the selection"),
 		M(Move, "Ctrl + drag", "Locks the movement to one axis"),
-		M(Move, "Alt + drag", "Turns snapping off until the button is released"),
-		M(Move, "Corner or side handle drag", "Resize"),
-		M(Move, "Ctrl + handle drag", "Keeps the proportions"),
-		M(Move, "Shift + handle drag", "Resizes around the centre"),
-		M(Move, "Rotation handle drag", "Rotate around the pivot"),
+		M(Move, "Alt + drag", "Turns snapping off"),
+		M(Move, "Handle drag", "Resizes"),
+		M(Move, "Ctrl + handle", "Keeps the proportions"),
+		M(Move, "Shift + handle", "Resizes around the centre"),
+		M(Move, "Rotation handle", "Rotates around the pivot"),
 
 		// CreateShapesTools, ShapeCutter, MeasurementTool, AngleMeasurementTool
-		M(Tools, "Left click", "Place the next point of the shape being created"),
-		M(Tools, "Right click while drawing a polygon", "Finishes the contour"),
-		M(Tools, "Right click with any other tool",
-			"Cancels what has been started and clears the placed points"),
-		M(Tools, "Ctrl while placing an end of a measurement",
-			"Does not attach the end to a shape"),
-		M(Tools, "Shift while drawing a cutting line", "Locks the line to horizontal or vertical"),
+		M(Tools, "Left button", "Places the next point"),
+		M(Tools, "Right button, polygon", "Finishes the contour"),
+		M(Tools, "Right button, other tools", "Cancels what has been started"),
+		M(Tools, "Ctrl, end of a measurement", "Does not attach the end to a shape"),
+		M(Tools, "Shift, cutting line", "Locks the line to an axis"),
 
 		// MainView.OnMouseDoubleClick, CurveNodeMarqueeSelectionOperation, Curves.cs
-		M(Nodes, "Double click on a shape", "Enters node editing"),
-		M(Nodes, "Double click on a segment", "Inserts a node, leaving the curve as it is"),
-		M(Nodes, "Left click on a node", "Leaves that node alone selected"),
-		M(Nodes, "Ctrl + left click on a node", "Adds the node to the selected ones, or drops it"),
-		M(Nodes, "Left drag over the curve itself", "Frames the nodes to select them"),
-		M(Nodes, "Control point drag", "Bends the curve at the node"),
-		M(Nodes, "Shift + control point drag", "Moves the opposite handle the same way, mirrored"),
+		M(Nodes, "Double click", "Enters node editing"),
+		M(Nodes, "Double click on a segment", "Inserts a node, keeping the curve"),
+		M(Nodes, "Left button on a node", "Leaves that node alone selected"),
+		M(Nodes, "Ctrl + node", "Adds the node to the selected ones, or drops it"),
+		M(Nodes, "Drag over the curve", "Frames the nodes"),
+		M(Nodes, "Control point", "Bends the curve at the node"),
+		M(Nodes, "Shift + control point", "Mirrors the opposite handle"),
 		M(Nodes, "Alt + drag", "Turns snapping off"),
 
 		// ImageToolSettings.GetPaintColor, ImagePaintEngine, lasso tools
-		M(Image, "Double click on an image", "Opens image editing"),
-		M(Image, "Left drag with a brush", "Paints with the foreground colour"),
-		M(Image, "Right drag with a brush", "Paints with the background colour"),
-		M(Image, "Left click with the fill tool", "Fills with the foreground colour"),
-		M(Image, "Right click with the fill tool", "Fills with the background colour"),
-		M(Image, "Left drag with the eraser", "Erases. The right button does not erase"),
-		M(Image, "Left drag with a selection tool", "Selects pixels, dropping the previous selection"),
-		M(Image, "Ctrl + selection", "Adds the pixels to the current selection")
+		M(Image, "Double click", "Opens image editing"),
+		M(Image, "Left with a brush", "Paints with the foreground colour"),
+		M(Image, "Right with a brush", "Paints with the background colour"),
+		M(Image, "Left with the fill", "Fills with the foreground colour"),
+		M(Image, "Right with the fill", "Fills with the background colour"),
+		M(Image, "Left with the eraser", "Erases. The right button does not"),
+		M(Image, "Left, selection", "Selects pixels, dropping the previous ones"),
+		M(Image, "Ctrl + selection", "Adds the pixels to the selection")
 	};
 
 	private static MouseAction M(string group, string gesture, string description)

@@ -122,7 +122,7 @@ public static class LineGlyphLibrary
 	public static IEnumerable<SkDropDownItem> ToDropDownItems()
 	{
 		foreach (var i in Items)
-			yield return new SkDropDownItem(i.Id, i.DisplayName, i.PreviewBitmap);
+			yield return new SkDropDownItem(i.Id, L.T(i.DisplayName), i.PreviewBitmap);
 	}
 
 	/// <summary>
@@ -135,7 +135,7 @@ public static class LineGlyphLibrary
 	public static IEnumerable<Ui.Avalon.AvDropDownItem> ToAvDropDownItems()
 	{
 		foreach (var i in Items)
-			yield return new Ui.Avalon.AvDropDownItem(i.Id, i.DisplayName, i.PreviewBitmap);
+			yield return new Ui.Avalon.AvDropDownItem(i.Id, L.T(i.DisplayName), i.PreviewBitmap);
 	}
 
 	#endregion

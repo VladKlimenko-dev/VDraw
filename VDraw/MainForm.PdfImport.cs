@@ -34,7 +34,7 @@ public partial class MainForm
 		}
 		catch (UnauthorizedAccessException ex)
 		{
-			MessageBox.Show(this, ex.Message, "Import PDF", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+			MessageBox.Show(this, ex.Message, L.T("Import PDF"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
 			return;
 		}
 		catch (Exception ex)
@@ -49,7 +49,7 @@ public partial class MainForm
 
 		if (sizes.Count == 0)
 		{
-			MessageBox.Show(this, "The PDF contains no pages.", "Import PDF");
+			MessageBox.Show(this, L.T("The PDF contains no pages."), L.T("Import PDF"));
 			return;
 		}
 
@@ -136,7 +136,7 @@ public partial class MainForm
 
 		if (totalShapes == 0)
 		{
-			MessageBox.Show(this, "The PDF contains no importable content.", "Import PDF");
+			MessageBox.Show(this, L.T("The PDF contains no importable content."), L.T("Import PDF"));
 			return;
 		}
 
@@ -160,7 +160,7 @@ public partial class MainForm
 			MessageBox.Show(
 				this,
 				string.Join(Environment.NewLine, warnings.Distinct().Take(10)),
-				"Import notes",
+				L.T("Import notes"),
 				MessageBoxButtons.OK,
 				MessageBoxIcon.Information);
 		}
@@ -225,7 +225,7 @@ public partial class MainForm
 		MessageBox.Show(
 			this,
 			message,
-			report.HasMissing ? "Отсутствующие шрифты" : "Шрифты документа",
+			L.T(report.HasMissing ? "Missing fonts" : "Document fonts"),
 			MessageBoxButtons.OK,
 			report.HasMissing ? MessageBoxIcon.Warning : MessageBoxIcon.Information);
 	}
@@ -234,8 +234,8 @@ public partial class MainForm
 	{
 		MessageBox.Show(
 			this,
-			$"Failed to import PDF.\r\n\r\n{ex.Message}",
-			"Import error",
+			L.T("Failed to import PDF.\r\n\r\n{0}", ex.Message),
+			L.T("Import error"),
 			MessageBoxButtons.OK,
 			MessageBoxIcon.Error);
 	}

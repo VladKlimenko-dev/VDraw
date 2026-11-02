@@ -237,8 +237,8 @@ public sealed partial class Document : PaperFormatData
 		catch (Exception ex)
 		{
 			MessageBox.Show(
-				$"Failed to save document.\r\n\r\n{ex.Message}",
-				"Save error",
+				L.T("Failed to save document.\r\n\r\n{0}", ex.Message),
+				L.T("Save error"),
 				MessageBoxButtons.OK,
 				MessageBoxIcon.Error);
 
@@ -253,9 +253,9 @@ public sealed partial class Document : PaperFormatData
 			Directory.CreateDirectory(DefaultDocumentsFolder);
 
 			using SaveFileDialog sfd = new SaveFileDialog();
-			sfd.Title = "Save VDraw document";
+			sfd.Title = L.T("Save VDraw document");
 			sfd.InitialDirectory = DefaultDocumentsFolder;
-			sfd.Filter = "VDraw document (*.vdr)|*.vdr|JSON files (*.json)|*.json|All files (*.*)|*.*";
+			sfd.Filter = L.Filter("VDraw document (*.vdr)|*.vdr|JSON files (*.json)|*.json|All files (*.*)|*.*");
 			sfd.DefaultExt = "vdr";
 			sfd.AddExtension = true;
 			sfd.OverwritePrompt = true;
@@ -281,8 +281,8 @@ public sealed partial class Document : PaperFormatData
 		catch (Exception ex)
 		{
 			MessageBox.Show(
-				$"Failed to save document.\r\n\r\n{ex.Message}",
-				"Save error",
+				L.T("Failed to save document.\r\n\r\n{0}", ex.Message),
+				L.T("Save error"),
 				MessageBoxButtons.OK,
 				MessageBoxIcon.Error);
 
@@ -299,8 +299,8 @@ public sealed partial class Document : PaperFormatData
 		}
 
 		DialogResult dr = MessageBox.Show(
-			"The document has unsaved changes.\r\nDo you want to save it before closing?",
-			"Save document",
+			L.T("The document has unsaved changes.\r\nDo you want to save it before closing?"),
+			L.T("Save document"),
 			MessageBoxButtons.YesNoCancel,
 			MessageBoxIcon.Question);
 

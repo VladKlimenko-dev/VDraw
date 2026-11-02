@@ -95,7 +95,7 @@ public sealed partial class SettingsForm : Form
 
 		_shortcutsPage = new ShortcutsPage();
 
-		var page = new TabPage("Shortcuts");
+		var page = new TabPage(L.T("Shortcuts"));
 
 		page.Controls.Add(_shortcutsPage);
 		host.TabPages.Add(page);

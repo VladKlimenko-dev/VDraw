@@ -104,6 +104,34 @@ public static class Localization
 			: T(english);
 	}
 
+	/// <summary>
+	/// Перевод строки фильтра файлового диалога.
+	///
+	/// Строка фильтра — это пары «подпись|маски», разделённые вертикальной
+	/// чертой. Переводится только подпись, то есть каждая вторая часть
+	/// через одну: маска вроде «*.vdr» — данные для диалога, и перевод
+	/// сломал бы отбор файлов.
+	///
+	/// Ключом служит подпись целиком, вместе со списком расширений
+	/// в скобках: он часть видимого текста, и выдумывать для него
+	/// отдельный ключ значило бы расходиться с тем, что на экране.
+	/// </summary>
+	public static string Filter(string? filter)
+	{
+		if (string.IsNullOrEmpty(filter))
+			return string.Empty;
+
+		if (Current == AppLanguage.English)
+			return filter;
+
+		string[] parts = filter.Split('|');
+
+		for (int i = 0; i < parts.Length; i += 2)
+			parts[i] = T(parts[i]);
+
+		return string.Join('|', parts);
+	}
+
 	#endregion
 
 	#region Переключение
@@ -147,6 +175,38 @@ public static class Localization
 
 		Capture(root);
 		Apply(root);
+		Fit(root);
+	}
+
+	/// <summary>
+	/// Перевод меню, созданного в коде.
+	///
+	/// Общий обход до таких меню не доходит: ContextMenuStrip не лежит
+	/// в дереве Controls формы, и Apply его не видит. Подписи запоминаются
+	/// по-английски и расставляются заново при каждом открытии: меню живёт
+	/// столько же, сколько форма, а открывается на долю секунды — дешевле
+	/// перевести его на показе, чем держать подписку на смену языка.
+	///
+	/// Вызывается после того, как пункты добавлены и подписаны
+	/// по-английски.
+	/// </summary>
+	public static void RegisterMenu(ToolStripDropDown menu)
+	{
+		if (menu == null)
+			return;
+
+		foreach (ToolStripItem item in menu.Items)
+			CaptureItem(item);
+
+		ApplyMenu(menu);
+
+		menu.Opening += (_, _) => ApplyMenu(menu);
+	}
+
+	private static void ApplyMenu(ToolStripDropDown menu)
+	{
+		foreach (ToolStripItem item in menu.Items)
+			ApplyItem(item);
 	}
 
 	/// <summary>
@@ -206,6 +266,135 @@ public static class Localization
 		foreach (Control child in root.Controls)
 			Apply(child);
 	}
+
+	#region Подгонка размеров под перевод
+
+	/// <summary>
+	/// Подсказки для подписей, которым текст всё равно не влез. Своя, а не
+	/// общая с окном: та раздаёт пояснения к кнопкам, и затирать их
+	/// техническим «вот полный текст» нельзя.
+	/// </summary>
+	private static readonly ToolTip _overflowTips = new() { AutoPopDelay = 20000 };
+
+	/// <summary>
+	/// Раздвигает подписи под переведённый текст, а что не раздвинулось —
+	/// помечает многоточием и показывает целиком в подсказке.
+	///
+	/// Русский текст в среднем на пятую часть длиннее английского, и
+	/// подписи, подогнанные в дизайнере под английский, обрезали бы его.
+	/// Проверять каждую руками бессмысленно: их несколько сотен, и
+	/// перевод будет правиться дальше.
+	///
+	/// Раздвигается только вправо и только до ближайшего соседа: сдвигать
+	/// соседей значило бы перекладывать форму заново, а это уже не подгонка,
+	/// а переразметка, и предсказать её на глаз нельзя. Где места нет,
+	/// обрезка остаётся, но видимой — многоточие и подсказка честнее
+	/// молча срезанного слова.
+	/// </summary>
+	public static void Fit(Control root)
+	{
+		if (root == null || _excluded.Contains(root))
+			return;
+
+		if (root is not Form && root is not TabPage)
+			FitOne(root);
+
+		foreach (Control child in root.Controls)
+			Fit(child);
+	}
+
+	private static void FitOne(Control control)
+	{
+		if (!IsCaptionControl(control) || control.AutoSize || string.IsNullOrEmpty(control.Text))
+			return;
+
+		int needed = MeasureWidth(control);
+
+		if (needed <= control.Width)
+			return;
+
+		// Внутри раскладочных панелей ширину задаёт панель: присваивание
+		// в Width там либо ничего не даст, либо собьёт разметку.
+		bool ownWidth =
+			control.Dock == DockStyle.None &&
+			control.Parent is not TableLayoutPanel &&
+			control.Parent is not FlowLayoutPanel;
+
+		if (ownWidth)
+			control.Width += Math.Min(needed - control.Width, FreeSpaceRight(control));
+
+		if (needed <= control.Width)
+			return;
+
+		switch (control)
+		{
+			case Label label:
+				label.AutoEllipsis = true;
+				break;
+
+			case ButtonBase button:
+				button.AutoEllipsis = true;
+				break;
+		}
+
+		_overflowTips.SetToolTip(control, control.Text);
+	}
+
+	/// <summary>Ширина, нужная тексту вместе с отступами и глифом.</summary>
+	private static int MeasureWidth(Control control)
+	{
+		int widest = 0;
+
+		// Многострочная подпись мерится по самой длинной строке: Graphics
+		// меряет перенос по уже заданной ширине, а нам нужна та ширина,
+		// которой не хватает.
+		foreach (string line in control.Text.Split('\n'))
+			widest = Math.Max(widest, TextRenderer.MeasureText(line.TrimEnd('\r'), control.Font).Width);
+
+		int extra = control.Padding.Horizontal + control switch
+		{
+			CheckBox or RadioButton => 22,   // квадратик или кружок слева
+			Button => 12,                    // поля внутри кнопки
+			_ => 2
+		};
+
+		return widest + extra;
+	}
+
+	/// <summary>
+	/// Свободное место справа: до ближайшего соседа, который стоит правее
+	/// и пересекается по высоте, иначе до края родителя.
+	/// </summary>
+	private static int FreeSpaceRight(Control control)
+	{
+		const int gap = 6;
+
+		var parent = control.Parent;
+
+		if (parent == null)
+			return 0;
+
+		int limit = parent.ClientSize.Width - gap;
+
+		foreach (Control sibling in parent.Controls)
+		{
+			if (ReferenceEquals(sibling, control) || !sibling.Visible)
+				continue;
+
+			if (sibling.Left < control.Right)
+				continue;
+
+			bool overlapsVertically =
+				sibling.Top < control.Bottom && control.Top < sibling.Bottom;
+
+			if (overlapsVertically)
+				limit = Math.Min(limit, sibling.Left - gap);
+		}
+
+		return Math.Max(0, limit - control.Right);
+	}
+
+	#endregion
 
 	private static void Capture(Control control)
 	{
@@ -348,4 +537,6 @@ public static class L
 	public static string T(string english, params object?[] args) => Localization.T(english, args);
 
 	public static string TIn(string context, string? english) => Localization.TIn(context, english);
+
+	public static string Filter(string? filter) => Localization.Filter(filter);
 }

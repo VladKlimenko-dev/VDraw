@@ -1,4 +1,4 @@
-using VDraw.Animation;
+﻿using VDraw.Animation;
 using VDraw.Documents;
 using VDraw.Editing;
 using VDraw.Editing.Images;
@@ -21,6 +21,11 @@ namespace VDraw
             // и именно она нужнее всего в журнале. Установи мы их после,
             // такой запуск закончился бы молча.
             ErrorLog.Install();
+
+            // Язык читается здесь, а не только в конструкторе окна: если
+            // запуск оборвётся, окна не будет, а сообщение об обрыве —
+            // будет, и выйти оно должно на языке пользователя.
+            Localization.LoadChoice();
 
             try
             {
@@ -48,9 +53,9 @@ namespace VDraw
                 ErrorLog.Write("Ошибка при запуске", ex, fatal: true);
 
                 MessageBox.Show(
-                    "VDraw не смог запуститься." + Environment.NewLine + Environment.NewLine +
+                    L.T("VDraw could not start.") + Environment.NewLine + Environment.NewLine +
                     ex.Message + Environment.NewLine + Environment.NewLine +
-                    "Подробности записаны в файл:" + Environment.NewLine + ErrorLog.FilePath,
+                    L.T("Details have been written to the file:") + Environment.NewLine + ErrorLog.FilePath,
                     "VDraw",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Error);

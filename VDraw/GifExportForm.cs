@@ -212,6 +212,10 @@ public partial class GifExportForm : Form
 	{
 		Text = L.T("Export animated GIF");
 
+		// Рамка осталась с подписью дизайнера: здесь форма переводит себя
+		// сама, и всё, чего нет в этом методе, остаётся английским.
+		groupBox1.Text = L.T("Export parameters");
+
 		width_label.Text = L.T("Width (px)");
 		height_label.Text = L.T("Height (px)");
 		keep_aspect_check.Text = L.T("Keep aspect ratio");

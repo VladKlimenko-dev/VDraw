@@ -1,4 +1,4 @@
-using SkiaSharp;
+﻿using SkiaSharp;
 
 using VDraw.Documents;
 using VDraw.Editing;
@@ -386,7 +386,7 @@ public partial class MainForm
 		using var ofd = new OpenFileDialog
 		{
 			Title = L.T("Import custom shapes"),
-			Filter = CustomShapeFilter + "|All files (*.*)|*.*",
+			Filter = L.Filter(CustomShapeFilter + "|All files (*.*)|*.*"),
 			Multiselect = true,
 			CheckFileExists = true
 		};
@@ -427,7 +427,7 @@ public partial class MainForm
 		using var ofd = new OpenFileDialog
 		{
 			Title = L.T("Import Visio file"),
-			Filter = StencilFilter + "|All files (*.*)|*.*",
+			Filter = L.Filter(StencilFilter + "|All files (*.*)|*.*"),
 			Multiselect = true,
 			CheckFileExists = true
 		};

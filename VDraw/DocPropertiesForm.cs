@@ -31,6 +31,12 @@ public partial class DocPropertiesForm : Form
 		paper = _paper;
 		InitializeComponent();
 		WinFormsTheme.Register(this);
+
+		// До заполнения списков: Register запоминает подписи, расставленные
+		// дизайнером, а пункты списков переводятся при добавлении — их
+		// общий обход не трогает, там Text это значение, а не подпись.
+		Localization.Register(this);
+
 		SuspendLayout();
 
 		format_cb.SelectedIndexChanged -= format_cb_SelectedIndexChanged;
@@ -43,9 +49,9 @@ public partial class DocPropertiesForm : Form
 		for (int i = 0; i < Settings.units.Count; i++)
 			unit_cb.Items.Add(Settings.units[i].title);
 		for (int i = 0; i < Settings.paper_formats.Count; i++)
-			format_cb.Items.Add(Settings.paper_formats[i].title);
-		orientation_cb.Items.Add("Vertical");
-		orientation_cb.Items.Add("Horizontal");
+			format_cb.Items.Add(L.T(Settings.paper_formats[i].title));
+		orientation_cb.Items.Add(L.T("Vertical"));
+		orientation_cb.Items.Add(L.T("Horizontal"));
 
 		unit_cb.SelectedIndex = Settings.units.FindIndex(o => o.title == paper.uom.title);
 		orientation_cb.SelectedIndex = paper.Orientation == PageOrientation.Vertical ? 0 : 1;
@@ -75,6 +81,30 @@ public partial class DocPropertiesForm : Form
 		ResumeLayout();
 	}
 
+	/// <summary>
+	/// Формат по текущему выбору в списке.
+	///
+	/// По индексу, а не по подписи: подписи в списке переведены, а имена
+	/// форматов в Settings остаются английскими, и поиск по строке после
+	/// перехода на русский не находил бы ничего. Порядок пунктов совпадает
+	/// с порядком Settings.paper_formats — они и заполняются из него.
+	/// </summary>
+	private PaperFormat? SelectedPaperFormat =>
+		format_cb.SelectedIndex >= 0 && format_cb.SelectedIndex < Settings.paper_formats.Count
+			? Settings.paper_formats[format_cb.SelectedIndex]
+			: null;
+
+	/// <summary>Выбирает формат в списке; null — «Custom».</summary>
+	private void SelectPaperFormat(PaperFormat? format)
+	{
+		int index = format == null
+			? Settings.paper_formats.FindIndex(o => o.title == "Custom")
+			: Settings.paper_formats.IndexOf(format);
+
+		if (index >= 0)
+			format_cb.SelectedIndex = index;
+	}
+
 	private void width_nud_ValueChanged(object? sender, EventArgs e)
 	{
 		UoM uom = Settings.units[unit_cb.SelectedIndex];
@@ -87,10 +117,8 @@ public partial class DocPropertiesForm : Form
 			h = ww;
 		}
 		PaperFormat? f = Settings.paper_formats.Find(o => o.width_mm == w && o.height_mm == h);
-		if (f != null)
-			format_cb.SelectedItem = f.title;
-		else
-			format_cb.SelectedItem = "Custom";
+
+		SelectPaperFormat(f);
 	}
 
 	private void height_nud_ValueChanged(object? sender, EventArgs e)
@@ -105,10 +133,8 @@ public partial class DocPropertiesForm : Form
 			h = ww;
 		}
 		PaperFormat? f = Settings.paper_formats.Find(o => o.width_mm == w && o.height_mm == h);
-		if (f != null)
-			format_cb.SelectedItem = f.title;
-		else
-			format_cb.SelectedItem = "Custom";
+
+		SelectPaperFormat(f);
 	}
 
 	private void orientation_cb_SelectedIndexChanged(object? sender, EventArgs e)
@@ -129,7 +155,7 @@ public partial class DocPropertiesForm : Form
 	private void format_cb_SelectedIndexChanged(object? sender, EventArgs e)
 	{
 		UoM uom = Settings.units[unit_cb.SelectedIndex];
-		PaperFormat? f = Settings.paper_formats.Find(o => o.title == (format_cb.SelectedItem as string));
+		PaperFormat? f = SelectedPaperFormat;
 		if (f == null)
 			return;
 		width_nud.ValueChanged -= width_nud_ValueChanged;
@@ -143,7 +169,7 @@ public partial class DocPropertiesForm : Form
 	private void unis_cb_SelectedIndexChanged(object? sender, EventArgs e)
 	{
 		UoM uom = Settings.units[unit_cb.SelectedIndex];
-		PaperFormat? f = Settings.paper_formats.Find(o => o.title == (format_cb.SelectedItem as string));
+		PaperFormat? f = SelectedPaperFormat;
 		if (f == null)
 			return;
 		width_nud.ValueChanged -= width_nud_ValueChanged;
@@ -169,7 +195,7 @@ public partial class DocPropertiesForm : Form
 			if (paper.title != title_tb.Text)
 				paper_changed = true;
 			paper.title = title_tb.Text;
-			PaperFormat? f = Settings.paper_formats.Find(o => o.title == (format_cb.SelectedItem as string));
+			PaperFormat? f = SelectedPaperFormat;
 			if (f == null)
 				f = Settings.paper_formats[0];
 			if (paper.paper_format != f)

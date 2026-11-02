@@ -49,7 +49,9 @@ public sealed class PrintForm : Form
 			float w = Size.Width / 100f * 25.4f;
 			float h = Size.Height / 100f * 25.4f;
 
-			return $"{Size.PaperName}  ({w:0} × {h:0} mm)";
+			// Переводится только единица: остальное — название формата
+			// от драйвера и числа, их переводить нечем.
+			return $"{Size.PaperName}  ({w:0} × {h:0} {L.T("mm")})";
 		}
 	}
 
@@ -116,6 +118,12 @@ public sealed class PrintForm : Form
 		Size = new Size(1060, 720);
 
 		BuildUi();
+
+		// Подписи расставлены по-английски прямо в BuildUi — здесь общий обход
+		// запоминает их и переводит. Вызов стоит до UpdatePreview: тот пишет
+		// в _pageLabel уже готовую строку с номерами, и попади она под обход,
+		// обход запомнил бы её как «исходный английский текст».
+		Localization.Register(this);
 
 		_printDoc.PrintPage += OnPrintPage;
 		_printDoc.QueryPageSettings += OnQueryPageSettings;
@@ -241,10 +249,12 @@ public sealed class PrintForm : Form
 		_rangeCurrent = new RadioButton { Text = "Current page", Location = new Point(12, 46), AutoSize = true };
 		_rangeCustom = new RadioButton { Text = "Pages:", Location = new Point(12, 70), AutoSize = true };
 
+		// Поле отодвинуто правее переключателя: «Pages:» при переводе
+		// становится вдвое длиннее и налезало на поле ввода.
 		_rangeText = new TextBox
 		{
-			Location = new Point(90, 68),
-			Width = 200,
+			Location = new Point(115, 68),
+			Width = 175,
 			Enabled = false,
 			PlaceholderText = "1-3, 5"
 		};
@@ -261,20 +271,24 @@ public sealed class PrintForm : Form
 
 	private Control BuildCopiesGroup()
 	{
-		var box = new GroupBox { Text = "Copies", Width = 305, Height = 78 };
+		// Высота под два ряда: флажок разбора стоял справа от счётчика, где
+		// до края рамки оставалось меньше восьмидесяти пикселей, и перевод
+		// его подписи в этот остаток не влезал. Своя строка даёт всю ширину.
+		var box = new GroupBox { Text = "Copies", Width = 305, Height = 106 };
 
 		box.Controls.Add(new Label { Text = "Number of copies:", Location = new Point(12, 26), AutoSize = true });
 
+		// Счётчик отодвинут правее: подпись слева от него растёт при переводе.
 		_copies = new NumericUpDown
 		{
-			Location = new Point(145, 24),
+			Location = new Point(165, 24),
 			Width = 70,
 			Minimum = 1,
 			Maximum = 999,
 			Value = 1
 		};
 
-		_collate = new CheckBox { Text = "Collate", Location = new Point(212+10, 25), AutoSize = true, Checked = true };
+		_collate = new CheckBox { Text = "Collate", Location = new Point(12, 56), AutoSize = true, Checked = true };
 
 		box.Controls.Add(_copies);
 		box.Controls.Add(_collate);
@@ -296,14 +310,22 @@ public sealed class PrintForm : Form
 
 		box.Controls.Add(new Label { Text = "Scale:", Location = new Point(12, 54), AutoSize = true });
 
+		// Список сдвинут правее, чтобы переведённая подпись «Scale:» в него
+		// не упиралась; ширина уменьшена на столько же — справа стоит счётчик
+		// процентов с жёсткой позицией.
 		_scaleMode = new ComboBox
 		{
 			DropDownStyle = ComboBoxStyle.DropDownList,
-			Location = new Point(70, 50),
-			Width = 150
+			Location = new Point(90, 50),
+			Width = 130
 		};
 
-		_scaleMode.Items.AddRange(new object[] { "Fit to page", "Actual size", "Custom" });
+		// Пункты списка общий обход не трогает (там Text — значение, а не
+		// подпись), поэтому перевод при добавлении. Выбор читается только
+		// по номеру пункта — см. SelectedIndexChanged, UpdatePreview
+		// и ComputeTargetRect: с переведёнными подписями сравнение
+		// по строке перестало бы совпадать.
+		_scaleMode.Items.AddRange(new object[] { L.T("Fit to page"), L.T("Actual size"), L.T("Custom") });
 		_scaleMode.SelectedIndex = 0;
 
 		_scaleMode.SelectedIndexChanged += (_, _) =>
@@ -398,10 +420,13 @@ public sealed class PrintForm : Form
 		_firstBut = MakeNavButton("|<", () => GoToPage(0));
 		_prevBut = MakeNavButton("<", () => GoToPage(_previewIndex - 1));
 
+		// Ширина с запасом: подпись переписывается на ходу («Страница 3 из 12»
+		// длиннее английского), а AutoSize в строке кнопок дёргал бы соседей
+		// при каждом переходе между страницами.
 		_pageLabel = new Label
 		{
 			AutoSize = false,
-			Width = 110,
+			Width = 170,
 			Height = 26,
 			TextAlign = ContentAlignment.MiddleCenter,
 			Margin = new Padding(4, 4, 4, 4)
@@ -416,11 +441,13 @@ public sealed class PrintForm : Form
 		bar.Controls.Add(_nextBut);
 		bar.Controls.Add(_lastBut);
 
+		// Шире английского «Zoom:»: подпись выровнена вправо, и не влезший
+		// перевод срезался бы по началу слова.
 		bar.Controls.Add(new Label
 		{
 			Text = "Zoom:",
 			AutoSize = false,
-			Width = 65,
+			Width = 100,
 			Height = 26,
 			TextAlign = ContentAlignment.MiddleRight,
 			Margin = new Padding(16, 4, 4, 4)
@@ -433,7 +460,9 @@ public sealed class PrintForm : Form
 			Margin = new Padding(0, 5, 4, 4)
 		};
 
-		_zoomCombo.Items.AddRange(new object[] { "Fit", "50%", "75%", "100%", "150%", "200%", "400%" });
+		// Словесный здесь только первый пункт, остальные — проценты, их
+		// переводить нечем.
+		_zoomCombo.Items.AddRange(new object[] { L.T("Fit"), "50%", "75%", "100%", "150%", "200%", "400%" });
 		_zoomCombo.SelectedIndex = 0;
 		_zoomCombo.SelectedIndexChanged += (_, _) => ApplyZoom();
 
@@ -466,8 +495,8 @@ public sealed class PrintForm : Form
 			Padding = new Padding(10, 8, 10, 8)
 		};
 
-		var cancel = new Button { Text = "Cancel", Height = 32, Width = 90, DialogResult = DialogResult.Cancel };
-		var print = new Button { Text = "Print", Height = 32, Width = 90 };
+		var cancel = new Button { Text = "Cancel", Height = 32, Width = 110, DialogResult = DialogResult.Cancel };
+		var print = new Button { Text = "Print", Height = 32, Width = 110 };
 
 		print.Click += (_, _) => DoPrint();
 
@@ -810,7 +839,7 @@ public sealed class PrintForm : Form
 			_centre.Checked,
 			_background.Checked);
 
-		_pageLabel.Text = $"Page {_previewIndex + 1} of {_doc.pages.Count}";
+		_pageLabel.Text = L.T("Page {0} of {1}", _previewIndex + 1, _doc.pages.Count);
 
 		_firstBut.Enabled = _previewIndex > 0;
 		_prevBut.Enabled = _previewIndex > 0;
@@ -819,6 +848,15 @@ public sealed class PrintForm : Form
 
 		ApplyZoom();
 	}
+
+	/// <summary>
+	/// Проценты списка масштаба предпросмотра, по номерам его пунктов.
+	/// На нулевом месте ноль: там «Fit», у него числа нет.
+	///
+	/// Таблица, а не разбор подписи пункта: первый пункт переводится, и после
+	/// перевода читать масштаб из текста было бы ненадёжно.
+	/// </summary>
+	private static readonly int[] ZoomPercents = { 0, 50, 75, 100, 150, 200, 400 };
 
 	private void ApplyZoom()
 	{
@@ -830,8 +868,8 @@ public sealed class PrintForm : Form
 		}
 		else
 		{
-			string text = (_zoomCombo.SelectedItem as string ?? "100%").TrimEnd('%');
-			zoom = float.TryParse(text, out float percent) ? percent / 100f : 1f;
+			int index = Math.Min(_zoomCombo.SelectedIndex, ZoomPercents.Length - 1);
+			zoom = ZoomPercents[index] / 100f;
 		}
 
 		_preview.SetZoom(zoom);
@@ -913,7 +951,10 @@ public sealed class PrintForm : Form
 
 		if (_printQueue.Count == 0)
 		{
-			MessageBox.Show(this, "Nothing to print: the page range is empty.", "Print");
+			MessageBox.Show(
+				this,
+				L.T("Nothing to print: the page range is empty."),
+				L.T("Print"));
 			return;
 		}
 
@@ -934,8 +975,8 @@ public sealed class PrintForm : Form
 		{
 			MessageBox.Show(
 				this,
-				$"Failed to print.\r\n\r\n{ex.Message}",
-				"Print error",
+				L.T("Failed to print.\r\n\r\n{0}", ex.Message),
+				L.T("Print error"),
 				MessageBoxButtons.OK,
 				MessageBoxIcon.Error);
 		}

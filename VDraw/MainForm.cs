@@ -309,6 +309,23 @@ public partial class MainForm : Form
 		SetViewToolTips();
 		SetPageToolTips();
 		SetImageToolTips();
+		SetCodeButtonToolTips();
+	}
+
+	/// <summary>
+	/// Подсказки кнопок, созданных в коде.
+	///
+	/// Проверка на null обязательна: SetToolTips вызывается из конструктора
+	/// раньше, чем эти кнопки созданы, и повторно — при смене языка, когда
+	/// они уже на месте. Без проверки первый вызов падал бы.
+	/// </summary>
+	private void SetCodeButtonToolTips()
+	{
+		if (_theme_toggle_but != null)
+			toolTip.SetToolTip(_theme_toggle_but, L.T("Light / dark theme"));
+
+		if (_sel_filter_but != null)
+			toolTip.SetToolTip(_sel_filter_but, L.T("Selection filter"));
 	}
 
 	#region Подсказки по группам
@@ -319,7 +336,7 @@ public partial class MainForm : Form
 		toolTip.SetToolTip(d_open_but, L.T("Open document  (Ctrl+O)\r\nOpens a .vdr file. Unsaved changes are offered for saving first."));
 		toolTip.SetToolTip(d_save_but, L.T("Save  (Ctrl+S)\r\nSaves to the current file. A new document asks for a name."));
 		toolTip.SetToolTip(d_save_as_but, L.T("Save as...  (Ctrl+Shift+S)\r\nSaves under a new name and keeps working in the new file."));
-		toolTip.SetToolTip(d_import_but, L.T("Import  (Ctrl+I)\r\nInserts shapes from a .vdr or pages from a .pdf into the current document, and adds .vdrs sets and Visio stencils to custom shapes."));
+		toolTip.SetToolTip(d_import_but, L.T("Import  (Ctrl+I)\r\nInserts shapes from a .vdr or pages from a .pdf into the current document,\r\nand adds .vdrs sets and Visio stencils to custom shapes."));
 		toolTip.SetToolTip(d_export_but, L.T("Export selection  (Ctrl+E)\r\nWrites the selected shapes to PNG, JPEG, BMP or SVG."));
 		toolTip.SetToolTip(d_print_but, L.T("Print  (Ctrl+P)"));
 		toolTip.SetToolTip(help_but, L.T("Help  (F1)"));
@@ -455,10 +472,18 @@ public partial class MainForm : Form
 	/// Подпись узкая, и попасть курсором в неё легко; подсказка только
 	/// на поле оставляла бы часть наведений без ответа.
 	/// </summary>
+	/// <summary>
+	/// Одна подсказка на поле и на его подпись.
+	///
+	/// Перевод здесь, а не в каждом вызове: подсказок десяток, и обёртка
+	/// в одном месте не даёт забыть её в новой строке.
+	/// </summary>
 	private void SetToolTipWithLabel(Control editor, Control caption, string text)
 	{
-		toolTip.SetToolTip(editor, text);
-		toolTip.SetToolTip(caption, text);
+		string translated = L.T(text);
+
+		toolTip.SetToolTip(editor, translated);
+		toolTip.SetToolTip(caption, translated);
 	}
 
 	#endregion
@@ -961,8 +986,20 @@ public partial class MainForm : Form
 			undo_but.Enabled = undo.CanUndo;
 			redo_but.Enabled = undo.CanRedo;
 
-			toolTip.SetToolTip(undo_but, undo.CanUndo ? $"Undo: {undo.NextUndoName}" : "Undo");
-			toolTip.SetToolTip(redo_but, undo.CanRedo ? $"Redo: {undo.NextRedoName}" : "Redo");
+			// Имя шага переводится здесь, а не там, где шаг создаётся:
+			// в стопке отмены оно живёт как английский ключ, и шаги,
+			// записанные до переключения языка, остались бы на прежнем.
+			toolTip.SetToolTip(
+				undo_but,
+				undo.CanUndo
+					? L.T("Undo: {0}", L.T(undo.NextUndoName))
+					: L.T("Undo"));
+
+			toolTip.SetToolTip(
+				redo_but,
+				undo.CanRedo
+					? L.T("Redo: {0}", L.T(undo.NextRedoName))
+					: L.T("Redo"));
 		}
 
 		_undoChangedHandler = Refresh;
@@ -2022,6 +2059,11 @@ public partial class MainForm : Form
 		menu.Items.Add(circle2PItem);
 		menu.Items.Add(circle3PItem);
 
+		// После того как пункты добавлены: подписи запоминаются
+		// по-английски и переводятся при каждом открытии — меню
+		// строится один раз, а язык меняется на ходу.
+		Localization.RegisterMenu(menu);
+
 		s_new_circle_but.DropDownMenu = menu;
 		s_new_circle_but.SelectedImage = ShapeIcon("circle2p");
 		_selectedCircleTool = ShapeToolKind.Circle2P;
@@ -2077,6 +2119,11 @@ public partial class MainForm : Form
 
 		menu.Items.Add(ellipse3PItem);
 		menu.Items.Add(ellipse5PItem);
+
+		// После того как пункты добавлены: подписи запоминаются
+		// по-английски и переводятся при каждом открытии — меню
+		// строится один раз, а язык меняется на ходу.
+		Localization.RegisterMenu(menu);
 
 		s_new_ellipse_but.DropDownMenu = menu;
 		s_new_ellipse_but.SelectedImage = ShapeIcon("ellipse3p");
@@ -2141,6 +2188,11 @@ public partial class MainForm : Form
 		menu.Items.Add(rectItem);
 		menu.Items.Add(roundedRectItem);
 		menu.Items.Add(chamferedRectItem);
+
+		// После того как пункты добавлены: подписи запоминаются
+		// по-английски и переводятся при каждом открытии — меню
+		// строится один раз, а язык меняется на ходу.
+		Localization.RegisterMenu(menu);
 
 		s_new_rc_but.DropDownMenu = menu;
 		s_new_rc_but.SelectedImage = ShapeIcon("rect");
@@ -2399,9 +2451,9 @@ public partial class MainForm : Form
 	{
 		using var ofd = new OpenFileDialog
 		{
-			Title = "Open VDraw document",
+			Title = L.T("Open VDraw document"),
 			InitialDirectory = Document.DefaultDocumentsFolder,
-			Filter = "VDraw document (*.vdr)|*.vdr|JSON files (*.json)|*.json|All files (*.*)|*.*",
+			Filter = L.Filter("VDraw document (*.vdr)|*.vdr|JSON files (*.json)|*.json|All files (*.*)|*.*"),
 			CheckFileExists = true
 		};
 
@@ -2418,8 +2470,8 @@ public partial class MainForm : Form
 		{
 			MessageBox.Show(
 				this,
-				$"Failed to open document.\r\n\r\n{ex.Message}",
-				"Open error",
+				L.T("Failed to open document.\r\n\r\n{0}", ex.Message),
+				L.T("Open error"),
 				MessageBoxButtons.OK,
 				MessageBoxIcon.Error);
 
@@ -2468,9 +2520,9 @@ public partial class MainForm : Form
 
 		using var ofd = new OpenFileDialog
 		{
-			Title = "Import",
+			Title = L.T("Import"),
 			InitialDirectory = Document.DefaultDocumentsFolder,
-			Filter =
+			Filter = L.Filter(
 				"All supported (*.vdr;*.json;*.pdf;*.vdrs;*.vss;*.vssx;*.png;*.jpg;*.bmp)" +
 				"|*.vdr;*.json;*.pdf;*.vdrs;*.vsdm;*.vss;*.vssx;*.vssm;*.vsx;*.vdx;" +
 				ImageFilterExtensions + "|" +
@@ -2480,7 +2532,7 @@ public partial class MainForm : Form
 				ImageFilter + "|" +
 				CustomShapeFilter + "|" +
 				StencilFilter + "|" +
-				"All files (*.*)|*.*",
+				"All files (*.*)|*.*"),
 			Multiselect = true,
 			CheckFileExists = true
 		};
@@ -2624,9 +2676,9 @@ public partial class MainForm : Form
 		{
 			MessageBox.Show(
 				this,
-				"Не удалось прочитать:" + Environment.NewLine +
+				L.T("These files could not be read:") + Environment.NewLine +
 				string.Join(Environment.NewLine, failed.Take(10)),
-				"Import",
+				L.T("Import"),
 				MessageBoxButtons.OK,
 				MessageBoxIcon.Warning);
 		}
@@ -2757,7 +2809,7 @@ public partial class MainForm : Form
 
 			if (imported.Count == 0)
 			{
-				MessageBox.Show(this, "The document contains no shapes to import.", "Import");
+				MessageBox.Show(this, L.T("The document contains no shapes to import."), L.T("Import"));
 				return;
 			}
 
@@ -2776,8 +2828,8 @@ public partial class MainForm : Form
 		{
 			MessageBox.Show(
 				this,
-				$"Failed to import document.\r\n\r\n{Path.GetFileName(filePath)}\r\n{ex.Message}",
-				"Import error",
+				L.T("Failed to import document.\r\n\r\n{0}\r\n{1}", Path.GetFileName(filePath), ex.Message),
+				L.T("Import error"),
 				MessageBoxButtons.OK,
 				MessageBoxIcon.Error);
 		}
@@ -2832,8 +2884,8 @@ public partial class MainForm : Form
 		if (path == null)
 		{
 			MessageBox.Show(this,
-				$"User manual not found.\r\n\r\nExpected file:\r\n{ResourcePaths.File(HelpFileName)}",
-				"Help",
+				L.T("User manual not found.\r\n\r\nExpected file:\r\n{0}", ResourcePaths.File(HelpFileName)),
+				L.T("Help"),
 				MessageBoxButtons.OK,
 				MessageBoxIcon.Warning);
 			return;
@@ -2855,8 +2907,8 @@ public partial class MainForm : Form
 			// Сюда попадает и случай, когда для .pdf в системе не назначена
 			// программа: показываем путь, чтобы файл можно было открыть руками.
 			MessageBox.Show(this,
-				$"Could not open the user manual.\r\n\r\n{path}\r\n\r\n{ex.Message}",
-				"Help",
+				L.T("Could not open the user manual.\r\n\r\n{0}\r\n\r\n{1}", path, ex.Message),
+				L.T("Help"),
 				MessageBoxButtons.OK,
 				MessageBoxIcon.Warning);
 		}
@@ -2907,7 +2959,7 @@ public partial class MainForm : Form
 		// не должна ломать копирование внутри приложения, поэтому
 		// результат не проверяется.
 		if (!ClipboardExporter.CopyShapes(_mainView.CurrentPage, selected, out string error))
-			MessageBox.Show(error, "Копирование в буфер");
+			MessageBox.Show(error, L.T("Copy to clipboard"));
 
 		// Свой буфер наполнился — кнопка вставки должна включиться сразу,
 		// не дожидаясь тика таймера.
@@ -3291,7 +3343,10 @@ public partial class MainForm : Form
 
 		// Отвязка и удаление — один шаг истории: Page.RemoveShapes открывает
 		// свою группу, но вложенные группы схлопываются в одну.
-		undo?.BeginGroup(doomed.Count == 1 ? "Delete shape" : $"Delete {doomed.Count} shapes");
+		// Без числа в имени: имя шага — английский ключ, который переводится
+		// при показе в подсказке, а ключ с подставленным числом в словаре
+		// не найти. Для подписи «отменить» число и не нужно.
+		undo?.BeginGroup(doomed.Count == 1 ? "Delete shape" : "Delete shapes");
 
 		try
 		{
@@ -4722,8 +4777,8 @@ public partial class MainForm : Form
 		if (image == null)
 		{
 			MessageBox.Show(
-				"Select Image first.",
-				"Image editing",
+				L.T("Select Image first."),
+				L.T("Image editing"),
 				MessageBoxButtons.OK,
 				MessageBoxIcon.Information);
 			return false;
@@ -4732,8 +4787,8 @@ public partial class MainForm : Form
 		if (!image.EnsureBitmapLoaded() || image.Bitmap == null)
 		{
 			MessageBox.Show(
-				"Could not load image.",
-				"Image editing",
+				L.T("Could not load image."),
+				L.T("Image editing"),
 				MessageBoxButtons.OK,
 				MessageBoxIcon.Warning);
 			return false;

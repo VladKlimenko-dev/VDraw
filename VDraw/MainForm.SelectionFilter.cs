@@ -20,6 +20,17 @@ public partial class MainForm
 	private readonly List<(ToolStripMenuItem Item, SelectionKinds Kinds)> _selFilterItems = new();
 
 	/// <summary>
+	/// Английская подпись пункта и его отступ.
+	///
+	/// Нужны потому, что меню строится один раз, а язык меняется на ходу.
+	/// Общий обход Localization.Apply сюда не доходит: меню не лежит
+	/// в дереве Controls формы. Подписи расставляются заново при каждом
+	/// открытии — это дешевле, чем подписываться на смену языка ради
+	/// меню, которое видно долю секунды.
+	/// </summary>
+	private readonly List<(ToolStripMenuItem Item, string Caption, int Indent)> _selFilterCaptions = new();
+
+	/// <summary>
 	/// Создаёт кнопку и её меню.
 	///
 	/// В коде, а не в дизайнере, по той же причине, что кнопка смены темы:
@@ -75,7 +86,11 @@ public partial class MainForm
 		// Состояние галочек читается из документа при каждом открытии:
 		// документ могли сменить, а подписываться на это ради меню,
 		// которое видно долю секунды, незачем.
-		_selFilterMenu.Opening += (_, _) => RefreshSelectionFilterChecks();
+		_selFilterMenu.Opening += (_, _) =>
+		{
+			ApplySelectionFilterTexts();
+			RefreshSelectionFilterChecks();
+		};
 
 		AddSelFilterItem("All", SelectionKinds.All, 0);
 		_selFilterMenu.Items.Add(new ToolStripSeparator());
@@ -103,19 +118,26 @@ public partial class MainForm
 		AddSelFilterItem("Measurements", SelectionKinds.Measurements, 0);
 		AddSelFilterItem("Distance Measurements", SelectionKinds.DistanceMeasurements, 1);
 		AddSelFilterItem("Angle Measurements", SelectionKinds.AngleMeasurements, 1);
+
+		ApplySelectionFilterTexts();
 	}
 
 	private void AddSelFilterItem(string text, SelectionKinds kinds, int indent)
 	{
-		var item = new ToolStripMenuItem(new string(' ', indent * 4) + L.T(text))
-		{
-			CheckOnClick = false
-		};
+		var item = new ToolStripMenuItem { CheckOnClick = false };
 
 		item.Click += (_, _) => ToggleSelectionFilter(kinds);
 
 		_selFilterMenu.Items.Add(item);
 		_selFilterItems.Add((item, kinds));
+		_selFilterCaptions.Add((item, text, indent));
+	}
+
+	/// <summary>Расставляет подписи пунктов на текущем языке.</summary>
+	private void ApplySelectionFilterTexts()
+	{
+		foreach (var (item, caption, indent) in _selFilterCaptions)
+			item.Text = new string(' ', indent * 4) + L.T(caption);
 	}
 
 	/// <summary>

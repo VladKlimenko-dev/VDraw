@@ -44,6 +44,7 @@ public partial class MainForm
 		try
 		{
 			Localization.Apply(this);
+			Localization.Fit(this);
 
 			SetToolTips();
 			UpdateLanguageButton();

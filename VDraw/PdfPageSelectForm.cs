@@ -74,8 +74,10 @@ public sealed class PdfPageSelectForm : Form
 		{
 			var size = pageSizesMm[i];
 
+			// Переводится только единица: остальное в подписи — номер
+			// страницы и её размеры.
 			string caption = size.Width > 0 && size.Height > 0
-				? $"{i + 1}   {size.Width:0}×{size.Height:0} мм"
+				? $"{i + 1}   {size.Width:0}×{size.Height:0} {L.T("mm")}"
 				: $"{i + 1}";
 
 			_list.Items.Add(new ListViewItem(caption) { Tag = i });
@@ -86,7 +88,7 @@ public sealed class PdfPageSelectForm : Form
 
 		_ownSheets = new CheckBox
 		{
-			Text = "Каждую страницу на отдельный лист",
+			Text = "Each page on its own sheet",
 			Checked = true,
 			AutoSize = true,
 			Location = new Point(12, 12)
@@ -101,28 +103,31 @@ public sealed class PdfPageSelectForm : Form
 			Location = new Point(12, 36)
 		};
 
+		// Ширины кнопок с запасом: позиции пересчитываются от правого края
+		// по самим ширинам, так что запас разметку не сдвигает, а перевод
+		// подписи в него укладывается.
 		var selectAll = new Button
 		{
-			Text = "Все",
-			Width = 80,
+			Text = "All",
+			Width = 110,
 			Height = 28,
 			Anchor = AnchorStyles.Top | AnchorStyles.Right
 		};
 
 		var ok = new Button
 		{
-			Text = "Импорт",
+			Text = "Import",
 			DialogResult = DialogResult.OK,
-			Width = 100,
+			Width = 110,
 			Height = 28,
 			Anchor = AnchorStyles.Top | AnchorStyles.Right
 		};
 
 		var cancel = new Button
 		{
-			Text = "Отмена",
+			Text = "Cancel",
 			DialogResult = DialogResult.Cancel,
-			Width = 100,
+			Width = 110,
 			Height = 28,
 			Anchor = AnchorStyles.Top | AnchorStyles.Right
 		};
@@ -168,6 +173,11 @@ public sealed class PdfPageSelectForm : Form
 		AcceptButton = ok;
 		CancelButton = cancel;
 
+		// После того как всё добавлено в дерево формы, но до UpdateState:
+		// подсказку тот переписывает на ходу, и попади она под общий обход,
+		// обход запомнил бы её как «исходный английский текст».
+		Localization.Register(this);
+
 		UpdateState();
 	}
 
@@ -209,10 +219,10 @@ public sealed class PdfPageSelectForm : Form
 
 		_hint.Text = selected switch
 		{
-			0 => "Выберите хотя бы одну страницу.",
-			1 => "Страница будет вставлена в текущий лист.",
-			_ when _ownSheets.Checked => $"Будет создано листов: {selected}.",
-			_ => $"Все {selected} страницы лягут в текущий лист друг поверх друга."
+			0 => L.T("Select at least one page."),
+			1 => L.T("The page will be inserted into the current sheet."),
+			_ when _ownSheets.Checked => L.T("Sheets to be created: {0}.", selected),
+			_ => L.T("All {0} pages will be placed on the current sheet, one on top of another.", selected)
 		};
 
 	}
