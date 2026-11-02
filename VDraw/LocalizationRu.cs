@@ -506,6 +506,27 @@ internal static class LocalizationRu
 
 		["Shortcuts"] = "Сочетания клавиш",
 		["Reset keys to default"] = "Сбросить сочетания",
+		["Reset mouse to default"] = "Сбросить мышь",
+		["Click a mouse button..."] = "Щёлкните кнопкой мыши...",
+		["Hold the keys and click..."] = "Держите клавиши и щёлкните...",
+
+		["left button"] = "левая кнопка",
+		["middle button"] = "средняя кнопка",
+		["right button"] = "правая кнопка",
+		["wheel"] = "колесо",
+
+		["Pan the view"] = "Панорамирование вида",
+		["Cancel the tool, finish the polygon"] = "Отменить инструмент, завершить многоугольник",
+		["Add to the selection"] = "Добавить к выделению",
+		["Lock the movement to one axis"] = "Держать перемещение по одной оси",
+		["Turn snapping off"] = "Отключить привязки",
+		["Keep the proportions"] = "Сохранять пропорции",
+		["Resize around the centre"] = "Менять размер от центра",
+		["Mirror the opposite control point"] = "Зеркалить противоположный рычаг",
+		["Do not attach a measurement end"] = "Не привязывать конец измерения",
+		["Lock the cutting line to an axis or diagonal"] =
+			"Держать линию разреза по оси или диагонали",
+		["Add to the pixel selection"] = "Добавить к выделению пикселей",
 		["Press keys..."] = "Нажмите клавиши...",
 		["none"] = "нет",
 		["Measurement default digits"] = "Знаков после точки в измерениях",
@@ -513,11 +534,13 @@ internal static class LocalizationRu
 		["Light / dark theme"] = "Светлая / тёмная тема",
 
 		["Click a shortcut and press the new key combination.\r\n"
-			+ "Esc cancels, Delete clears. Duplicates are shown in red.\r\n"
-			+ "The mouse buttons at the end of the list are a reference and cannot be changed."] =
+			+ "Click a mouse assignment, then click the mouse button you want,\r\n"
+			+ "holding the modifiers. Esc cancels, Delete clears.\r\n"
+			+ "Duplicates are shown in red. Muted lines are a reference and cannot be changed."] =
 			"Щёлкните сочетание и нажмите новые клавиши.\r\n"
-			+ "Esc — отмена, Delete — очистить. Совпадения показаны красным.\r\n"
-			+ "Кнопки мыши в конце списка — справка, они не настраиваются.",
+			+ "Щёлкните назначение мыши, затем щёлкните нужной кнопкой,\r\n"
+			+ "удерживая модификаторы. Esc — отмена, Delete — очистить.\r\n"
+			+ "Совпадения показаны красным. Приглушённые строки — справка, они не настраиваются.",
 
 		// Группы действий
 		["Tools"] = "Инструменты",

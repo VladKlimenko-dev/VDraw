@@ -142,22 +142,35 @@ public sealed partial class SettingsForm : Form
 	///
 	/// В коде, а не в дизайнере: файл дизайнера пользователь правит сам,
 	/// и добавленный туда контрол пропал бы при первой же перегенерации.
-	/// Положение и размеры взяты у соседней строки, чтобы колонка
-	/// подписей и колонка полей остались ровными.
+	/// Колонки берутся у соседней строки, чтобы подписи и поля остались
+	/// ровными.
+	///
+	/// Строка встаёт под САМЫМ НИЖНИМ, что есть на вкладке, а не под
+	/// заранее названным соседом: под длиной штриха лежит ещё строка
+	/// цвета заливки, и отсчёт от штриха клал новую подпись прямо на неё.
+	/// Отсчёт от нижнего края остаётся верным и когда на вкладку добавят
+	/// ещё строку.
 	/// </summary>
 	private void InitMeasurementDigits()
 	{
+		int bottom = 0;
+
+		foreach (Control control in tabShapes.Controls)
+			bottom = Math.Max(bottom, control.Bottom);
+
+		int top = bottom + 12;
+
 		lblMeasurementDigits = new Label
 		{
 			AutoSize = false,
-			Location = new Point(lblPatternLength.Left, lblPatternLength.Bottom + 12),
+			Location = new Point(lblPatternLength.Left, top + 4),
 			Size = lblPatternLength.Size,
 			Text = "Measurement default digits"
 		};
 
 		numMeasurementDigits = new NumericUpDown
 		{
-			Location = new Point(numPatternLength.Left, numPatternLength.Bottom + 12),
+			Location = new Point(numPatternLength.Left, top),
 			Size = numPatternLength.Size,
 			Minimum = 0,
 			Maximum = 6,
@@ -485,6 +498,9 @@ public static class SettingsStore
 		// Сочетания клавиш одной строкой: в ней только отличия от
 		// исходных значений, см. Shortcuts.Serialize.
 		list.Add(new Entry("shortcuts", Shortcuts.Serialize, Shortcuts.Deserialize));
+
+		// Назначения мыши — так же, одной строкой с отличиями.
+		list.Add(new Entry("mouse", MouseBindings.Serialize, MouseBindings.Deserialize));
 
 		Num("handle_size", () => Settings.handle_size, v => Settings.handle_size = v);
 		Num("handle_line_thickness", () => Settings.handle_line_thickness, v => Settings.handle_line_thickness = v);

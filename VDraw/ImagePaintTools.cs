@@ -2486,7 +2486,7 @@ public sealed class ImageLassoTool : IEditorTool
 
 		_image = resolved;
 
-		_combineMode = (Control.ModifierKeys & Keys.Control) == Keys.Control
+		_combineMode = MouseBindings.Held(MouseBindings.AddPixels, Control.ModifierKeys)
 			? SelectionCombineMode.Add
 			: SelectionCombineMode.Replace;
 

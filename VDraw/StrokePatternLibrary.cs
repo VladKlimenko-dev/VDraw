@@ -48,6 +48,30 @@ public static class StrokePatternLibrary
 		Items.Add(info);
 	}
 
+	/// <summary>
+	/// Перерисовывает превью, если тема сменилась с прошлого раза.
+	///
+	/// Проверка по месту, а не по событию смены темы: на событие подписана
+	/// и панель свойств, которая перестраивает списки, и порядок
+	/// подписчиков решал бы, увидит она новые картинки или ещё старые.
+	///
+	/// Прежние картинки не освобождаются: на них могли остаться ссылки
+	/// в уже построенных списках, и освобождение уронило бы отрисовку.
+	/// Их единицы, и сборщик мусора разберётся сам.
+	/// </summary>
+	public static void EnsurePreviewTheme()
+	{
+		if (_previewTheme == SkUiTheme.CurrentKind)
+			return;
+
+		_previewTheme = SkUiTheme.CurrentKind;
+
+		foreach (var info in Items)
+			info.PreviewBitmap = BuildPreviewBitmap(info.Pattern, info.Length);
+	}
+
+	private static SkThemeKind _previewTheme = SkUiTheme.CurrentKind;
+
 	public static StrokePatternInfo? Find(string id)
 	{
 		return Items.FirstOrDefault(x => x.Id == id);
@@ -111,7 +135,8 @@ public static class StrokePatternLibrary
 	}
 
 	// Строит превью паттерна как SKBitmap — крупная, отчётливая линия
-	public static SKBitmap BuildPreviewBitmap(string pattern, int lengthCells, int width = 120, int height = 28)
+	public static SKBitmap BuildPreviewBitmap(
+		string pattern, int lengthCells, int width = 120, int height = 28, SKColor? color = null)
 	{
 		var bmp = new SKBitmap(width, height, SKColorType.Bgra8888, SKAlphaType.Premul);
 		using var canvas = new SKCanvas(bmp);
@@ -122,7 +147,10 @@ public static class StrokePatternLibrary
 			IsAntialias = true,
 			Style = SKPaintStyle.Stroke,
 			StrokeWidth = 4f,
-			Color = SKColors.Black,
+
+			// Цвет текста темы, а не чёрный: образец лежит на поверхности
+			// списка, и чёрная линия на тёмной теме не видна.
+			Color = color ?? SkUiTheme.Current.Text,
 			StrokeCap = SKStrokeCap.Butt
 		};
 

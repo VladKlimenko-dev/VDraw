@@ -36,6 +36,17 @@ public sealed partial class MainView : SKGLControl
 	public float scale = 1.0f;
 
 	private bool _panning;
+
+	/// <summary>
+	/// Вид во время панорамирования действительно сдвинулся.
+	///
+	/// Нужен потому, что кнопка панорамирования настраиваемая и может
+	/// совпасть с кнопкой контекстного меню. Щелчок без протяжки тогда
+	/// обязан открыть меню, а не считаться панорамированием — иначе,
+	/// назначив панорамирование на правую кнопку, пользователь остался
+	/// бы без меню.
+	/// </summary>
+	private bool _panMoved;
 	private Point _panStartMouse;
 	private SKPoint _panStartZero;
 
@@ -2247,9 +2258,11 @@ public sealed partial class MainView : SKGLControl
 
 		#endregion
 
-		if (e.Button == MouseButtons.Middle)
+		// Кнопка панорамирования настраиваемая, см. MouseBindings.
+		if (MouseBindings.Matches(MouseBindings.Pan, e.Button, ModifierKeys))
 		{
 			_panning = true;
+			_panMoved = false;
 			_panStartMouse = e.Location;
 			_panStartZero = zero_pos;
 			Cursor = Cursors.Hand;
@@ -2465,6 +2478,9 @@ public sealed partial class MainView : SKGLControl
 			float dx = e.X - _panStartMouse.X;
 			float dy = e.Y - _panStartMouse.Y;
 
+			if (dx != 0f || dy != 0f)
+				_panMoved = true;
+
 			zero_pos = new SKPoint(_panStartZero.X + dx, _panStartZero.Y + dy);
 
 			if (CurrentPage != null)
@@ -2575,11 +2591,18 @@ public sealed partial class MainView : SKGLControl
 				return;
 			}
 
-			if (e.Button == MouseButtons.Middle)
+			// Сверяется признак и кнопка, а не назначение целиком: пока
+			// тащили, модификаторы могли отпустить, и строгая сверка
+			// оставила бы панорамирование включённым навсегда.
+			if (_panning && MouseBindings.ToInput(e.Button) == MouseBindings.Find(MouseBindings.Pan)?.Input)
 			{
 				_panning = false;
 				Cursor = Cursors.Default;
-				return;
+
+				// Щелчок без сдвига панорамированием не был: разбор
+				// продолжается дальше, к контекстному меню.
+				if (_panMoved)
+					return;
 			}
 
 			// Меню открывается на отпускании, а не на нажатии: правой
@@ -2594,7 +2617,7 @@ public sealed partial class MainView : SKGLControl
 			// положить скопированное туда, куда показал пользователь,
 			// а выделения при этом может не быть вовсе. Само меню
 			// разбирается, какие пункты в таком случае включать.
-			if (e.Button == MouseButtons.Right &&
+			if (MouseBindings.Matches(MouseBindings.ContextMenu, e.Button, ModifierKeys) &&
 				MainForm.Mode == EditorMode.Shape &&
 				_interaction.ActiveOperation == null &&
 				IsClickWithoutDrag(_interaction.MouseDownPage, world))

@@ -23,21 +23,37 @@ public sealed class ShortcutsPage : Panel
 		public bool Conflicted { get; set; }
 	}
 
+	/// <summary>Строка настраиваемого действия мыши.</summary>
+	private sealed class MouseRow
+	{
+		public required MouseActionBinding Action { get; init; }
+		public required Label Title { get; init; }
+		public required Label Binding { get; init; }
+
+		/// <summary>Назначение повторяется у другого действия.</summary>
+		public bool Conflicted { get; set; }
+	}
+
 	private readonly List<Row> _rows = new();
+	private readonly List<MouseRow> _mouseRows = new();
 
 	/// <summary>
-	/// Подписи с кнопками мыши. Хранятся отдельно, потому что красятся
-	/// иначе, чем сочетания клавиш: они не нажимаются, и выглядеть
-	/// нажимаемыми не должны.
+	/// Подписи неизменяемых действий мыши. Хранятся отдельно, потому что
+	/// красятся иначе: они не нажимаются и выглядеть нажимаемыми
+	/// не должны.
 	/// </summary>
 	private readonly List<Label> _mouseGestures = new();
 
 	private readonly TableLayoutPanel _table;
 	private readonly Button _resetButton;
+	private readonly Button _resetMouseButton;
 	private readonly Label _hint;
 
 	/// <summary>Строка, ожидающая нажатия. null — захвата нет.</summary>
 	private Row? _capturing;
+
+	/// <summary>Строка мыши, ожидающая щелчка. null — захвата нет.</summary>
+	private MouseRow? _capturingMouse;
 
 	public ShortcutsPage()
 	{
@@ -55,14 +71,26 @@ public sealed class ShortcutsPage : Panel
 
 		_resetButton.Click += (_, _) => ResetAll();
 
+		_resetMouseButton = new Button
+		{
+			Text = L.T("Reset mouse to default"),
+			AutoSize = true,
+			Dock = DockStyle.Top,
+			Height = 30,
+			UseVisualStyleBackColor = true
+		};
+
+		_resetMouseButton.Click += (_, _) => ResetMouse();
+
 		_hint = new Label
 		{
 			Dock = DockStyle.Top,
-			Height = 56,
+			Height = 72,
 			Text = L.T(
 				"Click a shortcut and press the new key combination.\r\n"
-				+ "Esc cancels, Delete clears. Duplicates are shown in red.\r\n"
-				+ "The mouse buttons at the end of the list are a reference and cannot be changed.")
+				+ "Click a mouse assignment, then click the mouse button you want,\r\n"
+				+ "holding the modifiers. Esc cancels, Delete clears.\r\n"
+				+ "Duplicates are shown in red. Muted lines are a reference and cannot be changed.")
 		};
 
 		_table = new TableLayoutPanel
@@ -84,6 +112,7 @@ public sealed class ShortcutsPage : Panel
 		// а подсказка и кнопка оказываются над ним.
 		Controls.Add(_table);
 		Controls.Add(_hint);
+		Controls.Add(_resetMouseButton);
 		Controls.Add(_resetButton);
 
 		ApplyTheme();
@@ -174,31 +203,102 @@ public sealed class ShortcutsPage : Panel
 	}
 
 	/// <summary>
-	/// Справка по кнопкам мыши в конце того же списка.
+	/// Действия мыши в конце того же списка.
 	///
 	/// Отдельной вкладки не заводим: пользователь ищет здесь ответ на один
 	/// и тот же вопрос — «чем это делается», — и разводить ответ по двум
 	/// местам значило бы заставлять его помнить, клавиша нужна или кнопка,
 	/// ещё до того, как он это выяснил.
 	///
+	/// В каждой группе сначала настраиваемые действия, потом неизменяемые.
+	/// Настраиваемые выглядят как строки сочетаний — рамка и курсор-рука,
+	/// — а справочные приглушены и рамки не имеют: разница в виде отвечает
+	/// на вопрос «это можно поменять?» раньше, чем пользователь щёлкнет.
+	///
 	/// Столбцы те же, что у сочетаний: справа — то, что нажимают, слева —
-	/// что из этого выходит. Строки не нажимаются, поэтому у них нет ни
-	/// рамки, ни курсора-руки, а текст приглушён.
+	/// что из этого выходит.
 	/// </summary>
 	private void BuildMouseRows()
 	{
-		string? lastGroup = null;
-
-		foreach (var action in MouseActions.All)
+		foreach (string group in MouseGroupsInOrder())
 		{
-			if (action.Group != lastGroup)
+			AddGroupHeader(group);
+
+			foreach (var action in MouseBindings.All)
 			{
-				lastGroup = action.Group;
-				AddGroupHeader(action.Group);
+				if (action.Group == group)
+					AddMouseBindingRow(action);
 			}
 
-			AddMouseRow(action);
+			foreach (var action in MouseActions.All)
+			{
+				if (action.Group == group)
+					AddMouseRow(action);
+			}
 		}
+	}
+
+	/// <summary>
+	/// Группы действий мыши в порядке появления, без повторов.
+	///
+	/// Берутся из обоих списков: в одной группе может не быть
+	/// настраиваемых действий, в другой — справочных.
+	/// </summary>
+	private static List<string> MouseGroupsInOrder()
+	{
+		var groups = new List<string>();
+
+		void Add(string group)
+		{
+			if (!groups.Contains(group, StringComparer.Ordinal))
+				groups.Add(group);
+		}
+
+		foreach (var action in MouseActions.All)
+			Add(action.Group);
+
+		foreach (var action in MouseBindings.All)
+			Add(action.Group);
+
+		return groups;
+	}
+
+	private void AddMouseBindingRow(MouseActionBinding action)
+	{
+		var title = new Label
+		{
+			Text = L.T(action.Title),
+			Dock = DockStyle.Fill,
+			TextAlign = ContentAlignment.MiddleLeft,
+			Padding = new Padding(12, 0, 0, 0)
+		};
+
+		var binding = new Label
+		{
+			Dock = DockStyle.Fill,
+			TextAlign = ContentAlignment.MiddleLeft,
+			Padding = new Padding(6, 0, 0, 0),
+			Cursor = Cursors.Hand,
+			BorderStyle = BorderStyle.FixedSingle
+		};
+
+		var row = new MouseRow { Action = action, Title = title, Binding = binding };
+
+		binding.MouseEnter += (_, _) => PaintMouseBinding(row, hovered: true);
+		binding.MouseLeave += (_, _) => PaintMouseBinding(row, hovered: false);
+
+		// Щелчок разбирается на нажатии, а не на Click: назначить нужно
+		// именно кнопку, а Click приходит только от левой.
+		binding.MouseDown += (_, e) => OnMouseBindingPressed(row, e);
+
+		int index = _table.RowCount;
+
+		_table.RowStyles.Add(new RowStyle(SizeType.Absolute, 26f));
+		_table.Controls.Add(title, 0, index);
+		_table.Controls.Add(binding, 1, index);
+		_table.RowCount = index + 1;
+
+		_mouseRows.Add(row);
 	}
 
 	private void AddMouseRow(MouseAction action)
@@ -265,10 +365,37 @@ public sealed class ShortcutsPage : Panel
 	/// </summary>
 	public bool HandleCaptureKey(Keys keyData)
 	{
+		Keys pressed = keyData & System.Windows.Forms.Keys.KeyCode;
+
+		// Захват мыши тоже отменяют и очищают с клавиатуры: кнопок у мыши
+		// три, и занимать одну из них под «передумал» значило бы отнять
+		// её у назначений.
+		if (_capturingMouse != null)
+		{
+			if (pressed == System.Windows.Forms.Keys.Escape)
+			{
+				CancelMouseCapture();
+
+				return true;
+			}
+
+			if (pressed == System.Windows.Forms.Keys.Delete
+				|| pressed == System.Windows.Forms.Keys.Back)
+			{
+				AssignMouse(_capturingMouse, MouseInput.None, System.Windows.Forms.Keys.None);
+
+				return true;
+			}
+
+			// Остальные нажатия при захвате мыши съедаются: это
+			// модификаторы, которые пользователь набирает перед щелчком.
+			return true;
+		}
+
 		if (_capturing == null)
 			return false;
 
-		Keys key = keyData & System.Windows.Forms.Keys.KeyCode;
+		Keys key = pressed;
 
 		if (key == System.Windows.Forms.Keys.Escape)
 		{
@@ -307,6 +434,72 @@ public sealed class ShortcutsPage : Panel
 
 	#endregion
 
+	#region Захват щелчка мыши
+
+	/// <summary>
+	/// Щелчок по назначению: первый начинает захват, следующий назначает.
+	///
+	/// Иначе было бы нечем назначить саму левую кнопку: щелчок, которым
+	/// строку выбирают, и щелчок, который назначают, — один и тот же.
+	/// </summary>
+	private void OnMouseBindingPressed(MouseRow row, MouseEventArgs e)
+	{
+		if (_capturingMouse != row)
+		{
+			BeginMouseCapture(row);
+
+			return;
+		}
+
+		Keys modifiers = Control.ModifierKeys & (Keys.Control | Keys.Shift | Keys.Alt);
+
+		// У действия без кнопки назначаются одни модификаторы: протяжка
+		// уже занята тем, что тащат, и кнопке там места нет.
+		MouseInput input = row.Action.ModifierOnly
+			? MouseInput.None
+			: MouseBindings.ToInput(e.Button);
+
+		AssignMouse(row, input, modifiers);
+	}
+
+	private void BeginMouseCapture(MouseRow row)
+	{
+		CancelCapture();
+
+		if (_capturingMouse != null && _capturingMouse != row)
+			CancelMouseCapture();
+
+		_capturingMouse = row;
+
+		row.Binding.Text = row.Action.ModifierOnly
+			? L.T("Hold the keys and click...")
+			: L.T("Click a mouse button...");
+
+		PaintMouseBinding(row, hovered: true);
+	}
+
+	private void CancelMouseCapture()
+	{
+		var row = _capturingMouse;
+
+		_capturingMouse = null;
+
+		if (row != null)
+			RefreshMouseRow(row);
+	}
+
+	private void AssignMouse(MouseRow row, MouseInput input, Keys modifiers)
+	{
+		row.Action.Input = input;
+		row.Action.Modifiers = modifiers;
+
+		_capturingMouse = null;
+
+		RefreshAll();
+	}
+
+	#endregion
+
 	#region Отрисовка состояния
 
 	private void ResetAll()
@@ -314,6 +507,15 @@ public sealed class ShortcutsPage : Panel
 		Shortcuts.ResetToDefaults();
 
 		_capturing = null;
+
+		RefreshAll();
+	}
+
+	private void ResetMouse()
+	{
+		MouseBindings.ResetToDefaults();
+
+		_capturingMouse = null;
 
 		RefreshAll();
 	}
@@ -327,6 +529,38 @@ public sealed class ShortcutsPage : Panel
 			row.Conflicted = conflicts.Contains(row.Action.Id);
 			RefreshRow(row);
 		}
+
+		var mouseConflicts = MouseBindings.FindConflicts();
+
+		foreach (var row in _mouseRows)
+		{
+			row.Conflicted = mouseConflicts.Contains(row.Action.Id);
+			RefreshMouseRow(row);
+		}
+	}
+
+	private void RefreshMouseRow(MouseRow row)
+	{
+		if (_capturingMouse == row)
+			return;
+
+		row.Binding.Text = MouseBindings.Format(row.Action);
+
+		PaintMouseBinding(row, hovered: false);
+	}
+
+	private void PaintMouseBinding(MouseRow row, bool hovered)
+	{
+		var pal = SkUiTheme.Current;
+
+		bool capturing = _capturingMouse == row;
+
+		row.Binding.BackColor = ToColor(
+			capturing ? pal.Selected : hovered ? pal.Surface2 : pal.Surface);
+
+		row.Binding.ForeColor = row.Conflicted
+			? Color.FromArgb(220, 60, 50)
+			: ToColor(pal.Text);
 	}
 
 	private void RefreshRow(Row row)
@@ -365,19 +599,25 @@ public sealed class ShortcutsPage : Panel
 		_hint.BackColor = Color.Transparent;
 		_hint.ForeColor = ToColor(pal.TextMuted);
 
-		_resetButton.FlatStyle = FlatStyle.Flat;
-		_resetButton.BackColor = ToColor(pal.Surface);
-		_resetButton.ForeColor = ToColor(pal.Text);
-		_resetButton.FlatAppearance.BorderColor = ToColor(pal.Border);
+		foreach (var button in new[] { _resetButton, _resetMouseButton })
+		{
+			button.FlatStyle = FlatStyle.Flat;
+			button.BackColor = ToColor(pal.Surface);
+			button.ForeColor = ToColor(pal.Text);
+			button.FlatAppearance.BorderColor = ToColor(pal.Border);
+		}
 
 		foreach (Control control in _table.Controls)
 		{
 			if (control is not Label label)
 				continue;
 
-			// Поля с сочетаниями красит PaintKeys: у них своё состояние —
-			// наведение, захват и совпадение.
+			// Поля с сочетаниями и назначениями мыши красятся отдельно:
+			// у них своё состояние — наведение, захват и совпадение.
 			if (_rows.Any(r => ReferenceEquals(r.Keys, label)))
+				continue;
+
+			if (_mouseRows.Any(r => ReferenceEquals(r.Binding, label)))
 				continue;
 
 			label.BackColor = Color.Transparent;
@@ -391,6 +631,9 @@ public sealed class ShortcutsPage : Panel
 
 		foreach (var row in _rows)
 			PaintKeys(row, hovered: false);
+
+		foreach (var row in _mouseRows)
+			PaintMouseBinding(row, hovered: false);
 	}
 
 	private static Color ToColor(SKColor c)

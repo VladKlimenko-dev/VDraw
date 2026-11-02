@@ -118,9 +118,36 @@ public static class LineGlyphLibrary
 		return Items.FirstOrDefault(x => x.Id == id);
 	}
 
+	/// <summary>
+	/// Перерисовывает превью, если тема сменилась с прошлого раза.
+	///
+	/// Проверка здесь, при раздаче элементов, а не по событию смены темы:
+	/// на событие подписана и панель свойств, которая перестраивает списки,
+	/// и порядок подписчиков решал бы, увидит ли она новые картинки или
+	/// ещё старые. При проверке на месте такого вопроса нет.
+	///
+	/// Прежние картинки не освобождаются намеренно: на них могли остаться
+	/// ссылки в уже построенных списках, и освобождение уронило бы
+	/// отрисовку. Их десяток, и сборщик мусора разберётся сам.
+	/// </summary>
+	private static void EnsurePreviewTheme()
+	{
+		if (_previewTheme == SkUiTheme.CurrentKind)
+			return;
+
+		_previewTheme = SkUiTheme.CurrentKind;
+
+		foreach (var i in Items)
+			i.PreviewBitmap = BuildPreviewBitmap(i.Id);
+	}
+
+	private static SkThemeKind _previewTheme = SkUiTheme.CurrentKind;
+
 	/// <summary>Элементы для SkDropDownBox: значение + название + картинка.</summary>
 	public static IEnumerable<SkDropDownItem> ToDropDownItems()
 	{
+		EnsurePreviewTheme();
+
 		foreach (var i in Items)
 			yield return new SkDropDownItem(i.Id, L.T(i.DisplayName), i.PreviewBitmap);
 	}
@@ -134,6 +161,8 @@ public static class LineGlyphLibrary
 	/// </summary>
 	public static IEnumerable<Ui.Avalon.AvDropDownItem> ToAvDropDownItems()
 	{
+		EnsurePreviewTheme();
+
 		foreach (var i in Items)
 			yield return new Ui.Avalon.AvDropDownItem(i.Id, L.T(i.DisplayName), i.PreviewBitmap);
 	}
@@ -322,7 +351,8 @@ public static class LineGlyphLibrary
 	/// Широкое превью сжалось бы по горизонтали, и треугольная стрелка
 	/// стала бы неотличима от инженерной.
 	/// </summary>
-	public static SKBitmap BuildPreviewBitmap(string glyphId, int width = 40, int height = 40)
+	public static SKBitmap BuildPreviewBitmap(
+		string glyphId, int width = 40, int height = 40, SKColor? color = null)
 	{
 		var bmp = new SKBitmap(width, height, SKColorType.Bgra8888, SKAlphaType.Premul);
 
@@ -334,7 +364,10 @@ public static class LineGlyphLibrary
 			IsAntialias = true,
 			Style = SKPaintStyle.Stroke,
 			StrokeWidth = 1.6f,
-			Color = SKColors.Black,
+
+			// Цвет текста темы, а не чёрный: превью лежит на поверхности
+			// списка, и чёрная стрелка на тёмной теме не видна вовсе.
+			Color = color ?? SkUiTheme.Current.Text,
 			StrokeCap = SKStrokeCap.Butt
 		};
 

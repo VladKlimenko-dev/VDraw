@@ -1394,6 +1394,11 @@ public sealed class AvPropertyPanel : UserControl
 
 		void RefreshStrokeTypeItems()
 		{
+			// Образцы линий перерисовываются под текущую тему: панель
+			// пересобирается при её смене, и это ближайшее место,
+			// где картинки берут.
+			StrokePatternLibrary.EnsurePreviewTheme();
+
 			strokeType.SetItems(
 				StrokePatternLibrary.Items.Select(x => new AvDropDownItem(
 					x.Id,

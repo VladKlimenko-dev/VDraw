@@ -12,16 +12,20 @@ public sealed class MouseAction
 }
 
 /// <summary>
-/// Справочник кнопок мыши: какая кнопка за какую операцию отвечает.
+/// Справочник неизменяемых действий мыши.
 ///
-/// Только справка, настройке не подлежит. Кнопки мыши не лежат таблицей,
-/// как сочетания клавиш: каждая разобрана там, где обрабатывается
-/// нажатие, вместе с ходом операции — и разобрана по-разному в каждом
-/// режиме и в каждом инструменте. Свести их в реестр значило бы
-/// переписать весь разбор мыши, а пользователю нужно не это, а ответ
-/// на вопрос «чем панорамируют и что делает Ctrl с протяжкой».
+/// Здесь то, что настройке не подлежит и показывается только как
+/// справка; настраиваемое живёт в MouseBindings и показывается
+/// в тех же группах выше.
 ///
-/// Поэтому список составлен по коду и правится вместе с ним. Чтобы он
+/// Не настраивается левая кнопка и всё, что на ней держится. Левая
+/// кнопка означает «работать инструментом»: создание фигур, выделение,
+/// перетаскивание маркеров, правка узлов — сотни мест, которые пришлось
+/// бы переписать ради возможности, за которой никто не приходил.
+/// Не настраивается и колесо: другого колеса у мыши нет, а масштаб
+/// по нему ожидают все.
+///
+/// Список составлен по коду и правится вместе с ним. Чтобы он
 /// не разошёлся с действительностью, над каждой группой указано, где
 /// её проверять.
 /// </summary>
@@ -40,45 +44,30 @@ public static class MouseActions
 		// всё равно уходит в описание. «Протяжка» в русском длиннее
 		// английского drag, и длинные жесты там обрезались бы.
 
-		// MainView.OnMouseWheel, MainView.OnMouseDown (middle), CreateGuideOperation
+		// MainView.OnMouseWheel, CreateGuideOperation
 		M(View, "Wheel", "Zoom in and out around the pointer"),
-		M(View, "Middle button", "Pans the view"),
 		M(View, "Drag from a ruler", "Pulls out a guide"),
 
 		// SelectTool.OnMouseDown, MarqueeSelectionOperation, MainView.OnMouseUp
 		M(Select, "Left button", "Selects the shape under the pointer"),
-		M(Select, "Ctrl + left", "Adds the shape to the selection"),
 		M(Select, "Frame, left to right", "Takes only what fits inside entirely"),
 		M(Select, "Frame, right to left", "Takes everything the frame touches"),
-		M(Select, "Ctrl + frame", "Adds the framed shapes to the selection"),
 		M(Select, "Centre handle", "Switches resizing and rotating"),
-		M(Select, "Right button", "Shape context menu"),
 
 		// TransformSelectionOperation, MoveSelectionOperation, DragOperation
 		M(Move, "Left drag", "Moves the selection"),
-		M(Move, "Ctrl + drag", "Locks the movement to one axis"),
-		M(Move, "Alt + drag", "Turns snapping off"),
 		M(Move, "Handle drag", "Resizes"),
-		M(Move, "Ctrl + handle", "Keeps the proportions"),
-		M(Move, "Shift + handle", "Resizes around the centre"),
 		M(Move, "Rotation handle", "Rotates around the pivot"),
 
 		// CreateShapesTools, ShapeCutter, MeasurementTool, AngleMeasurementTool
 		M(Tools, "Left button", "Places the next point"),
-		M(Tools, "Right button, polygon", "Finishes the contour"),
-		M(Tools, "Right button, other tools", "Cancels what has been started"),
-		M(Tools, "Ctrl, end of a measurement", "Does not attach the end to a shape"),
-		M(Tools, "Shift, cutting line", "Locks the line to an axis"),
 
 		// MainView.OnMouseDoubleClick, CurveNodeMarqueeSelectionOperation, Curves.cs
 		M(Nodes, "Double click", "Enters node editing"),
 		M(Nodes, "Double click on a segment", "Inserts a node, keeping the curve"),
 		M(Nodes, "Left button on a node", "Leaves that node alone selected"),
-		M(Nodes, "Ctrl + node", "Adds the node to the selected ones, or drops it"),
 		M(Nodes, "Drag over the curve", "Frames the nodes"),
 		M(Nodes, "Control point", "Bends the curve at the node"),
-		M(Nodes, "Shift + control point", "Mirrors the opposite handle"),
-		M(Nodes, "Alt + drag", "Turns snapping off"),
 
 		// ImageToolSettings.GetPaintColor, ImagePaintEngine, lasso tools
 		M(Image, "Double click", "Opens image editing"),
@@ -87,8 +76,7 @@ public static class MouseActions
 		M(Image, "Left with the fill", "Fills with the foreground colour"),
 		M(Image, "Right with the fill", "Fills with the background colour"),
 		M(Image, "Left with the eraser", "Erases. The right button does not"),
-		M(Image, "Left, selection", "Selects pixels, dropping the previous ones"),
-		M(Image, "Ctrl + selection", "Adds the pixels to the selection")
+		M(Image, "Left, selection", "Selects pixels, dropping the previous ones")
 	};
 
 	private static MouseAction M(string group, string gesture, string description)

@@ -305,8 +305,12 @@ internal static class GuideSnapping
 	{
 		ctx.ActiveSnap = null;
 
-		if (!Settings.snap_objects || ctx.AltPressed || view.CurrentPage == null)
+		if (!Settings.snap_objects
+			|| MouseBindings.Held(MouseBindings.NoSnapping, ctx.Modifiers)
+			|| view.CurrentPage == null)
+		{
 			return candidateAnchor;
+		}
 
 		SKPoint normal = guide.GetNormal();
 
@@ -461,7 +465,8 @@ public sealed class MoveGuideCenterOperation : DragOperation
 
 		var candidate = new SKPoint(_startCenter.X + dx, _startCenter.Y + dy);
 
-		if (!ctx.AltPressed && ObjectSnapEngine.AnySnappingEnabled)
+		if (!MouseBindings.Held(MouseBindings.NoSnapping, ctx.Modifiers)
+			&& ObjectSnapEngine.AnySnappingEnabled)
 		{
 			// Сама направляющая исключается: её собственная линия проходит
 			// через центр, и он прилипал бы к ней же, никуда не двигаясь.

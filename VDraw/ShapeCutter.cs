@@ -287,9 +287,11 @@ public sealed class ScissorsLineTool : ScissorsToolBase
 		if (!IsDrawing || Points.Count < 2)
 			return;
 
-		// Shift ограничивает разрез горизонталью, вертикалью или диагональю —
-		// то же поведение, что у остальных инструментов рисования.
-		Points[1] = ctx.ShiftPressed ? ConstrainToAxis(Points[0], pagePoint) : pagePoint;
+		// Модификатор ограничивает разрез горизонталью, вертикалью или
+		// диагональю — то же поведение, что у остальных инструментов рисования.
+		Points[1] = MouseBindings.Held(MouseBindings.CutAxisLock, ctx.Modifiers)
+			? ConstrainToAxis(Points[0], pagePoint)
+			: pagePoint;
 
 		view.Invalidate();
 	}
@@ -299,7 +301,9 @@ public sealed class ScissorsLineTool : ScissorsToolBase
 		if (button != MouseButtons.Left || !IsDrawing)
 			return;
 
-		Points[1] = ctx.ShiftPressed ? ConstrainToAxis(Points[0], pagePoint) : pagePoint;
+		Points[1] = MouseBindings.Held(MouseBindings.CutAxisLock, ctx.Modifiers)
+			? ConstrainToAxis(Points[0], pagePoint)
+			: pagePoint;
 
 		if (Geometry.Distance(Points[0], Points[1]) < 0.01f)
 		{

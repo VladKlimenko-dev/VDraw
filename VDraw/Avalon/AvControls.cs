@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 
 using Avalonia;
 using Avalonia.Controls;
@@ -1161,7 +1161,7 @@ public sealed class AvNumericUpDown : Border
 		{
 			Direction = AvFlowDirection.Vertical,
 			Gap = 0,
-			Width = 16
+			Width = ArrowWidth
 		};
 
 		arrows.Add(_up);
@@ -1183,6 +1183,18 @@ public sealed class AvNumericUpDown : Border
 		SetValue(0f);
 	}
 
+	/// <summary>
+	/// Ширина колонки со стрелками и кегль самих стрелок.
+	///
+	/// Прежние 16 точек при кегле 8 давали стрелку в несколько пикселей:
+	/// в неё трудно попасть, а на крупном экране её просто не разглядеть.
+	/// Ширина поля ввода от этого не страдает — колонка со стрелками
+	/// в сетке объявлена как Auto.
+	/// </summary>
+	private const double ArrowWidth = 22;
+
+	private const double ArrowFontSize = 13;
+
 	private RepeatButton CreateArrow(string glyph, int sign)
 	{
 		var button = new RepeatButton
@@ -1190,12 +1202,12 @@ public sealed class AvNumericUpDown : Border
 			Content = new TextBlock
 			{
 				Text = glyph,
-				FontSize = 8,
+				FontSize = ArrowFontSize,
 				Foreground = AvTheme.TextMuted,
 				HorizontalAlignment = HorizontalAlignment.Center,
 				VerticalAlignment = VerticalAlignment.Center
 			},
-			Width = 16,
+			Width = ArrowWidth,
 			Height = (AvTheme.InputHeight - 2) / 2,
 			MinHeight = 0,
 			MinWidth = 0,

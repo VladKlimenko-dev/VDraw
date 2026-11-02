@@ -638,6 +638,16 @@ public sealed class EditorInteractionContext
 	public bool CtrlPressed { get; set; }
 	public bool AltPressed { get; set; }
 	public bool ShiftPressed { get; set; }
+
+	/// <summary>
+	/// Те же три признака одним значением — для проверки назначений мыши
+	/// через MouseBindings, где модификатор у действия настраиваемый
+	/// и заранее неизвестно, какую из трёх клавиш спрашивать.
+	/// </summary>
+	public Keys Modifiers =>
+		(CtrlPressed ? Keys.Control : Keys.None)
+		| (ShiftPressed ? Keys.Shift : Keys.None)
+		| (AltPressed ? Keys.Alt : Keys.None);
 	public List<Shape> SelectionSnapshot { get; } = new();
 
 	public SelectionTransformMode TransformMode { get; set; } = SelectionTransformMode.Resize;
@@ -782,13 +792,14 @@ public abstract class DragOperation
 	}
 
 	/// <summary>
-	/// Прижимает точку к оси, выбранной первым движением при зажатом Ctrl.
+	/// Прижимает точку к оси, выбранной первым движением при зажатом
+	/// модификаторе MouseBindings.AxisLock.
 	///
 	/// Ось определяется ОДИН раз — по тому, в какую сторону пользователь
 	/// повёл дальше. Пересчитывать её на каждом кадре нельзя: у диагонального
 	/// движения преобладающая сторона меняется по дороге, и точка прыгала бы
 	/// между горизонталью и вертикалью. Выбранная ось держится до отпускания
-	/// Ctrl.
+	/// модификатора.
 	///
 	/// Порог в несколько экранных точек, а не ноль: в первые мгновения
 	/// протяжки обе составляющие сравнимы с дрожанием руки, и ось выбиралась
@@ -800,9 +811,9 @@ public abstract class DragOperation
 		SKPoint start,
 		SKPoint current)
 	{
-		if (!ctx.CtrlPressed)
+		if (!MouseBindings.Held(MouseBindings.AxisLock, ctx.Modifiers))
 		{
-			// Отпустили Ctrl — ось забывается, и следующее нажатие
+			// Отпустили модификатор — ось забывается, и следующее нажатие
 			// выбирает её заново по текущему направлению.
 			_axisLock = AxisLockKind.None;
 			return current;
@@ -1659,12 +1670,13 @@ public sealed class SelectTool : IEditorTool
 
 						bool clickedNodeAlreadySelected = node.Selected;
 
-						if (ctx.CtrlPressed)
+						if (MouseBindings.Held(MouseBindings.AddToSelection, ctx.Modifiers))
 						{
 							// Переключение откладывается до отпускания кнопки.
 							//
-							// Ctrl здесь означает и «добавить узел к выбранным»,
-							// и «вести перемещение по одной оси». Пока кнопка
+							// Модификатор здесь означает и «добавить узел
+							// к выбранным», и — если он же назначен на ось —
+							// «вести перемещение по одной оси». Пока кнопка
 							// нажата, одно от другого не отличить, поэтому
 							// на нажатии не делаем ничего необратимого:
 							// переключим на отпускании, если протяжки не было.
@@ -2077,7 +2089,7 @@ public sealed class SelectTool : IEditorTool
 
 				if (hit.Shape != null)
 				{
-					if (ctx.CtrlPressed)
+					if (MouseBindings.Held(MouseBindings.AddToSelection, ctx.Modifiers))
 					{
 						if (SelectionHelper.Contains(ctx, hit.Shape))
 							SelectionHelper.Remove(ctx, hit.Shape);
@@ -2162,7 +2174,7 @@ public sealed class SelectTool : IEditorTool
 				if (TryGrabByHighlightedPoint(view, ctx, pagePoint, before))
 					return;
 
-				if (!ctx.CtrlPressed)
+				if (!MouseBindings.Held(MouseBindings.AddToSelection, ctx.Modifiers))
 					SelectionHelper.Clear(ctx);
 
 				view.NotifySelectionIfChanged(before);
@@ -2210,7 +2222,10 @@ public sealed class SelectTool : IEditorTool
 		{
 			if (ctx.Selection.Contains(current))
 			{
-				if (ctx.CtrlPressed)
+				// С модификатором добавления за точку не берут: нажатие
+				// означает «добавить», и уходит оно в рамку выделения,
+				// которая прежнее выделение сохраняет.
+				if (MouseBindings.Held(MouseBindings.AddToSelection, ctx.Modifiers))
 					return false;
 
 				view.StartOperation(new MoveSelectionOperation(), pagePoint);
@@ -2225,7 +2240,7 @@ public sealed class SelectTool : IEditorTool
 		if (root.IsLocked || !root.IsVisible)
 			return false;
 
-		if (ctx.CtrlPressed)
+		if (MouseBindings.Held(MouseBindings.AddToSelection, ctx.Modifiers))
 		{
 			SelectionHelper.Add(ctx, root);
 			view.mainForm?.ApplyEditorModeFromSelection();
@@ -2475,7 +2490,7 @@ public sealed class MarqueeSelectionOperation : DragOperation
 		Rect = Normalize(ctx.MouseDownPage, pagePoint);
 		Crossing = pagePoint.X < ctx.MouseDownPage.X;
 
-		if (ctx.CtrlPressed)
+		if (MouseBindings.Held(MouseBindings.AddToSelection, ctx.Modifiers))
 			SelectionHelper.RestoreSnapshot(ctx);
 		else
 			SelectionHelper.Clear(ctx);
@@ -2672,7 +2687,7 @@ public sealed class MoveSelectionOperation : DragOperation
 		float dx = constrained.X - _start.X;
 		float dy = constrained.Y - _start.Y;
 
-		if (!ctx.AltPressed)
+		if (!MouseBindings.Held(MouseBindings.NoSnapping, ctx.Modifiers))
 		{
 			// Прилипает одна точка — взятый узел в своём новом положении.
 			var movedAnchor = new SKPoint(_anchorStart.X + dx, _anchorStart.Y + dy);
@@ -2691,8 +2706,8 @@ public sealed class MoveSelectionOperation : DragOperation
 				dy += snap.Correction.Y;
 
 				// Поправка прилипания тоже прижимается к оси: цель могла
-				// найтись в стороне, и без этого Ctrl переставал держать
-				// направление ровно в тот момент, когда сработало прилипание.
+				// найтись в стороне, и без этого ось переставала держаться
+				// ровно в тот момент, когда сработало прилипание.
 				var corrected = ApplyAxisLock(
 					view, ctx, _start, new SKPoint(_start.X + dx, _start.Y + dy));
 
@@ -2817,8 +2832,8 @@ public sealed class ResizeSelectionOperation : DragOperation
 		if (degenerateX && degenerateY)
 			return;
 
-		bool proportionalResize = ctx.CtrlPressed;
-		bool symmetricResize = ctx.ShiftPressed;
+		bool proportionalResize = MouseBindings.Held(MouseBindings.ProportionalResize, ctx.Modifiers);
+		bool symmetricResize = MouseBindings.Held(MouseBindings.SymmetricResize, ctx.Modifiers);
 
 		float safeW0 = MathF.Abs(w0) < minSize ? (w0 < 0 ? -minSize : minSize) : w0;
 		float safeH0 = MathF.Abs(h0) < minSize ? (h0 < 0 ? -minSize : minSize) : h0;
@@ -3715,9 +3730,11 @@ public sealed class MoveShapePointOperation : DragOperation
 			return;
 		}
 
-		// Alt, а не Ctrl: отключение прилипания на время протяжки повсюду
-		// на Alt. Ctrl в этой операции не участвует вовсе.
-		if (!ctx.AltPressed && ObjectSnapEngine.AnySnappingEnabled)
+		// Отключение прилипания на время протяжки спрашивается у реестра:
+		// это одно действие на весь редактор, а не отдельная клавиша этой
+		// операции. Ограничение по оси здесь не участвует вовсе.
+		if (!MouseBindings.Held(MouseBindings.NoSnapping, ctx.Modifiers)
+			&& ObjectSnapEngine.AnySnappingEnabled)
 		{
 			var snap = ObjectSnapEngine.SnapMovingPoint(
 				view,
@@ -4005,7 +4022,7 @@ public sealed class MoveShapePointOperation : DragOperation
 	///
 	/// Settings.snap_objects здесь сознательно не проверяется, как и у связей
 	/// во flowchart: привязка конца размера нужна и тогда, когда прилипание
-	/// выключено. Alt временно отключает и её.
+	/// выключено. Модификатор «без привязок» временно отключает и её.
 	/// </summary>
 	private bool TryAnchorMeasurement(
 		MainView view,
@@ -4019,11 +4036,11 @@ public sealed class MoveShapePointOperation : DragOperation
 		bool first = _pointIndex == 0;
 		var anchor = first ? shape.FirstAnchor : shape.LastAnchor;
 
-		// Alt, а не Ctrl. Протяжка конца размера проходит через эту ветку
-		// И через обычное прилипание ниже, и пока они слушали разные
-		// клавиши, Alt гасил одну половину, Ctrl — другую, а отпустить
-		// точку целиком не удавалось ни тем, ни другим.
-		if (ctx.AltPressed || !anchor.Enabled)
+		// То же действие, что и у обычного прилипания ниже. Протяжка конца
+		// размера проходит через обе ветки, и пока они слушали разные
+		// клавиши, одна клавиша гасила одну половину, другая — другую,
+		// а отпустить точку целиком не удавалось ни тем, ни другим.
+		if (MouseBindings.Held(MouseBindings.NoSnapping, ctx.Modifiers) || !anchor.Enabled)
 			return false;
 
 		// includeCenter: у размера центр фигуры — полноценная точка измерения.
@@ -4943,7 +4960,7 @@ public sealed class MeasureTool : IEditorTool
 		_hoverTarget = null;
 		_hoverIndex = 0;
 
-		if (ctx.CtrlPressed)
+		if (MouseBindings.Held(MouseBindings.NoAnchor, ctx.Modifiers))
 			return pagePoint;
 
 		if (ObjectSnapEngine.TryFindAnchor(
@@ -5594,8 +5611,9 @@ public sealed class MeasureAngleTool : IEditorTool
 	/// более быстрый способ. Когда первая точка уже поставлена, сегмент
 	/// брать некуда — остаётся только привязка к точке.
 	///
-	/// Ctrl отключает и то, и другое: без этого нельзя было бы поставить
-	/// точку рядом с чужой линией, а такое нужно постоянно.
+	/// Модификатор «не привязывать конец измерения» отключает и то, и другое:
+	/// без этого нельзя было бы поставить точку рядом с чужой линией, а такое
+	/// нужно постоянно.
 	/// </summary>
 	private void UpdateHover(MainView view, EditorInteractionContext ctx, SKPoint pagePoint)
 	{
@@ -5614,7 +5632,7 @@ public sealed class MeasureAngleTool : IEditorTool
 		_hoverAnchorIndex = 0;
 		_hoverAnchorNodeId = Guid.Empty;
 
-		if (ctx.CtrlPressed || _vectorsDone >= 2)
+		if (MouseBindings.Held(MouseBindings.NoAnchor, ctx.Modifiers) || _vectorsDone >= 2)
 			return;
 
 		if (!_hasPendingPoint && TryPickAnchoredSegment(view, pagePoint))

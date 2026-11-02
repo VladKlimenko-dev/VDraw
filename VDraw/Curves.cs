@@ -2644,16 +2644,15 @@ public sealed class MoveCurveNodeOperation : DragOperation
 		bool isLast = nodeIndex == shape.Nodes.Count - 1;
 
 		// Привязка ищется только для концов и только если она разрешена
-		// галочкой панели. Alt временно отключает — так же, как обычное
-		// прилипание при перемещении фигур.
+		// галочкой панели. Модификатор «без привязок» временно отключает —
+		// так же, как обычное прилипание при перемещении фигур.
 		//
-		// Прежде отключал Ctrl. Он отдан ограничению по оси — тому же,
-		// что и при перемещении фигур, — а роль «временно без прилипания»
-		// повсюду исполняет Alt. Держать два разных клавиша для одного
-		// и того же в разных режимах значило бы заставлять пользователя
-		// помнить, где он находится.
+		// Прежде отключало ограничение по оси. Роль «временно без прилипания»
+		// повсюду исполняет одно и то же действие реестра: держать два разных
+		// модификатора для одного и того же в разных режимах значило бы
+		// заставлять пользователя помнить, где он находится.
 		bool anchoring =
-			!ctx.AltPressed &&
+			!MouseBindings.Held(MouseBindings.NoSnapping, ctx.Modifiers) &&
 			((isFirst && shape.FirstAnchor.Enabled) ||
 			 (isLast && shape.LastAnchor.Enabled));
 
@@ -2685,7 +2684,8 @@ public sealed class MoveCurveNodeOperation : DragOperation
 			shape.ClearAnchor(isFirst);
 		}
 
-		if (!ctx.AltPressed && ObjectSnapEngine.AnySnappingEnabled)
+		if (!MouseBindings.Held(MouseBindings.NoSnapping, ctx.Modifiers)
+			&& ObjectSnapEngine.AnySnappingEnabled)
 		{
 			// Своя же кривая участвует в прилипании: её остальные узлы
 			// и продолжения её отрезков — самые нужные ориентиры, когда
@@ -3043,10 +3043,11 @@ public sealed class MoveCurveControlPointOperation : DragOperation
 		ctx.ActiveSnap = null;
 
 
-		// Временно без прилипания — по Alt, как и везде. Прежде здесь стоял
-		// Ctrl: нажатие Alt рычаг не отпускало, а Ctrl отпускал — ровно
-		// наоборот ожидаемому. Ctrl в этой операции больше не участвует.
-		if (!ctx.AltPressed && ObjectSnapEngine.AnySnappingEnabled)
+		// Временно без прилипания — тем же действием, что и везде. Прежде
+		// здесь спрашивалась своя клавиша, и рычаг отпускался не той, какой
+		// ожидали. Ограничение по оси в этой операции не участвует.
+		if (!MouseBindings.Held(MouseBindings.NoSnapping, ctx.Modifiers)
+			&& ObjectSnapEngine.AnySnappingEnabled)
 		{
 			var snap = ObjectSnapEngine.SnapMovingPoint(view, new[] { shape }, pagePoint, Settings.snap_dist);
 			ctx.ActiveSnap = snap;
@@ -3054,7 +3055,11 @@ public sealed class MoveCurveControlPointOperation : DragOperation
 				target = new SKPoint(pagePoint.X + snap.Correction.X, pagePoint.Y + snap.Correction.Y);
 		}
 
-		shape.MoveControlPoint(nodeIndex, isPrev, shape.WorldToLocal(target), ctx.ShiftPressed);
+		shape.MoveControlPoint(
+			nodeIndex,
+			isPrev,
+			shape.WorldToLocal(target),
+			MouseBindings.Held(MouseBindings.MirrorHandle, ctx.Modifiers));
 
 		if (view.CurrentPage != null)
 			view.CurrentPage.doc.need_save = true;

@@ -579,7 +579,14 @@ public sealed class AvPatternGridEditor : Control
 		if (grid.Width <= 0 || grid.Height <= 0)
 			return;
 
-		context.FillRectangle(AvTheme.PanelBack, grid);
+		// Поле узора светлое в обеих темах, а не цвета панели.
+		//
+		// Клетка здесь — пиксель будущей линии, и её цвет задаёт сама
+		// линия. В тёмной теме тёмный фон сливался бы с непрорисованными
+		// клетками, и узор читался бы наоборот: тёмные промежутки
+		// выглядели бы штрихом, а штрих — промежутком. Светлое поле
+		// отвечает на вопрос «что здесь нарисовано» одинаково в любой теме.
+		context.FillRectangle(GridBackground, grid);
 
 		double cell = CellSize(grid);
 
@@ -587,8 +594,17 @@ public sealed class AvPatternGridEditor : Control
 		{
 			for (int x = 0; x < PatternWidth; x++)
 			{
+				var color = _cells[y, x];
+
+				// Непрорисованная клетка оставляется фону: залей её
+				// прозрачным — и получится тот же фон, но мимо кисти,
+				// а залей цветом фона — узор перестанет отличать
+				// «пусто» от «белая линия».
+				if (color.Alpha == 0)
+					continue;
+
 				context.FillRectangle(
-					AvTheme.Brush(_cells[y, x]),
+					AvTheme.Brush(color),
 					new Rect(grid.X + x * cell, grid.Y + y * cell, cell, cell));
 			}
 		}
@@ -626,6 +642,13 @@ public sealed class AvPatternGridEditor : Control
 	/// Поле клеток — квадратное и по центру: при неквадратном узоре
 	/// растянутые клетки читались бы как другой рисунок.
 	/// </summary>
+	/// <summary>
+	/// Поле под узором. Чуть темнее белого: белая линия на белом поле
+	/// иначе пропадала бы совсем, а так её край виден.
+	/// </summary>
+	private static readonly IBrush GridBackground =
+		new SolidColorBrush(Color.FromRgb(0xF2, 0xF2, 0xF2));
+
 	private Rect GridRect()
 	{
 		const double pad = 8;
