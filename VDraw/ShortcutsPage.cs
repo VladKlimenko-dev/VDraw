@@ -24,6 +24,14 @@ public sealed class ShortcutsPage : Panel
 	}
 
 	private readonly List<Row> _rows = new();
+
+	/// <summary>
+	/// Подписи с кнопками мыши. Хранятся отдельно, потому что красятся
+	/// иначе, чем сочетания клавиш: они не нажимаются, и выглядеть
+	/// нажимаемыми не должны.
+	/// </summary>
+	private readonly List<Label> _mouseGestures = new();
+
 	private readonly TableLayoutPanel _table;
 	private readonly Button _resetButton;
 	private readonly Label _hint;
@@ -50,10 +58,11 @@ public sealed class ShortcutsPage : Panel
 		_hint = new Label
 		{
 			Dock = DockStyle.Top,
-			Height = 40,
+			Height = 56,
 			Text = L.T(
 				"Click a shortcut and press the new key combination.\r\n"
-				+ "Esc cancels, Delete clears. Duplicates are shown in red.")
+				+ "Esc cancels, Delete clears. Duplicates are shown in red.\r\n"
+				+ "The mouse buttons at the end of the list are a reference and cannot be changed.")
 		};
 
 		_table = new TableLayoutPanel
@@ -68,6 +77,7 @@ public sealed class ShortcutsPage : Panel
 		_table.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 38f));
 
 		BuildRows();
+		BuildMouseRows();
 
 		// Порядок добавления обратный порядку стыковки: добавленное
 		// последним встаёт ближе к краю, поэтому список идёт первым,
@@ -161,6 +171,62 @@ public sealed class ShortcutsPage : Panel
 		_table.RowCount = index + 1;
 
 		_rows.Add(row);
+	}
+
+	/// <summary>
+	/// Справка по кнопкам мыши в конце того же списка.
+	///
+	/// Отдельной вкладки не заводим: пользователь ищет здесь ответ на один
+	/// и тот же вопрос — «чем это делается», — и разводить ответ по двум
+	/// местам значило бы заставлять его помнить, клавиша нужна или кнопка,
+	/// ещё до того, как он это выяснил.
+	///
+	/// Столбцы те же, что у сочетаний: справа — то, что нажимают, слева —
+	/// что из этого выходит. Строки не нажимаются, поэтому у них нет ни
+	/// рамки, ни курсора-руки, а текст приглушён.
+	/// </summary>
+	private void BuildMouseRows()
+	{
+		string? lastGroup = null;
+
+		foreach (var action in MouseActions.All)
+		{
+			if (action.Group != lastGroup)
+			{
+				lastGroup = action.Group;
+				AddGroupHeader(action.Group);
+			}
+
+			AddMouseRow(action);
+		}
+	}
+
+	private void AddMouseRow(MouseAction action)
+	{
+		var description = new Label
+		{
+			Text = L.T(action.Description),
+			Dock = DockStyle.Fill,
+			TextAlign = ContentAlignment.MiddleLeft,
+			Padding = new Padding(12, 0, 0, 0)
+		};
+
+		var gesture = new Label
+		{
+			Text = L.T(action.Gesture),
+			Dock = DockStyle.Fill,
+			TextAlign = ContentAlignment.MiddleLeft,
+			Padding = new Padding(6, 0, 0, 0)
+		};
+
+		int index = _table.RowCount;
+
+		_table.RowStyles.Add(new RowStyle(SizeType.Absolute, 26f));
+		_table.Controls.Add(description, 0, index);
+		_table.Controls.Add(gesture, 1, index);
+		_table.RowCount = index + 1;
+
+		_mouseGestures.Add(gesture);
 	}
 
 	#endregion
@@ -315,7 +381,12 @@ public sealed class ShortcutsPage : Panel
 				continue;
 
 			label.BackColor = Color.Transparent;
-			label.ForeColor = ToColor(pal.Text);
+
+			// Кнопки мыши приглушены: они справка, а не настройка, и ровный
+			// с сочетаниями цвет читался бы как «это тоже можно нажать».
+			label.ForeColor = _mouseGestures.Contains(label)
+				? ToColor(pal.TextMuted)
+				: ToColor(pal.Text);
 		}
 
 		foreach (var row in _rows)

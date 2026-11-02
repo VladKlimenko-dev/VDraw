@@ -431,7 +431,10 @@ public partial class MainForm : Form
 		toolTip.SetToolTip(i_erasor_but, L.T("Eraser  (E in image mode)"));
 		toolTip.SetToolTip(i_brush_but, L.T("Brush  (B in image mode)\r\nSoft edge, strength and smoothing apply."));
 		toolTip.SetToolTip(i_select_rect_but, L.T("Rectangular selection  (R in image mode)"));
-		toolTip.SetToolTip(i_select_lasso_but, L.T("Lasso selection  (L in image mode)\r\nShift adds to the selection, Alt subtracts."));
+		// Про Ctrl, а не про Shift и Alt: разбор в ImageLassoTool смотрит
+		// только на Ctrl, а вычитания из выделения в коде нет вовсе —
+		// режимов два, Replace и Add. Подсказка обещала третий.
+		toolTip.SetToolTip(i_select_lasso_but, L.T("Lasso selection  (L in image mode)\r\nCtrl adds to the selection."));
 		toolTip.SetToolTip(i_fill_but, L.T("Fill  (G in image mode)\r\nFills an area of similar colour. Tolerance sets how similar."));
 		toolTip.SetToolTip(i_light_but, L.T("Lighten\r\nBrightens pixels under the brush."));
 		toolTip.SetToolTip(i_dark_but, L.T("Darken\r\nDarkens pixels under the brush."));

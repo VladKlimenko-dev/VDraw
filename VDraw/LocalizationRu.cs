@@ -213,8 +213,8 @@ internal static class LocalizationRu
 
 		["Rectangular selection  (R in image mode)"] = "Прямоугольное выделение  (R в режиме изображения)",
 
-		["Lasso selection  (L in image mode)\r\nShift adds to the selection, Alt subtracts."] =
-			"Выделение лассо  (L в режиме изображения)\r\nShift добавляет к выделению, Alt вычитает.",
+		["Lasso selection  (L in image mode)\r\nCtrl adds to the selection."] =
+			"Выделение лассо  (L в режиме изображения)\r\nCtrl добавляет к выделению.",
 
 		["Fill  (G in image mode)\r\nFills an area of similar colour. Tolerance sets how similar."] =
 			"Заливка  (G в режиме изображения)\r\nЗаливает область близкого цвета. Допуск задаёт степень близости.",
