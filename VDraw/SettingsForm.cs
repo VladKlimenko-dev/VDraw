@@ -50,6 +50,20 @@ public sealed partial class SettingsForm : Form
 		// к моменту, когда форму красят и переводят.
 		InitMeasurementDigits();
 
+		// Окно можно растянуть, и оно не меньше того, что в нём помещается.
+		//
+		// Список сочетаний с мышью длиннее всего, что было в настройках
+		// раньше, и в прежнюю высоту его видно едва на десяток строк.
+		// Размер из дизайнера остаётся исходным, а не предельным.
+		FormBorderStyle = FormBorderStyle.Sizable;
+		MinimumSize = Size;
+
+		int tallerHeight = Math.Min(
+			Height + 320,
+			Math.Max(Height, Screen.PrimaryScreen?.WorkingArea.Height - 80 ?? Height));
+
+		Size = new Size(Width, tallerHeight);
+
 		WinFormsTheme.Register(this);
 
 		BindColors();
@@ -71,6 +85,24 @@ public sealed partial class SettingsForm : Form
 		InitShortcutsTab();
 
 		LoadFromSettings();
+	}
+
+	/// <summary>
+	/// Повторная подгонка подписей под переведённый текст — уже по
+	/// настоящим размерам.
+	///
+	/// Localization.Register подгоняет их в конструкторе, но там размеры
+	/// ещё из дизайнера: раскладка на этот момент приостановлена, вкладки
+	/// не растянуты по окну, а вкладка сочетаний вообще создаётся позже.
+	/// Подпись, которой в конструкторе места якобы не хватало, после
+	/// раскладки может его получить — и наоборот. Поэтому мерка снимается
+	/// ещё раз, когда окно уже разложено.
+	/// </summary>
+	protected override void OnShown(EventArgs e)
+	{
+		base.OnShown(e);
+
+		Localization.Fit(this);
 	}
 
 	/// <summary>Вкладка сочетаний клавиш.</summary>

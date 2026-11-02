@@ -1,4 +1,4 @@
-using SkiaSharp;
+﻿using SkiaSharp;
 
 using VDraw.Ui;
 
@@ -85,12 +85,22 @@ public sealed class ShortcutsPage : Panel
 		_hint = new Label
 		{
 			Dock = DockStyle.Top,
-			Height = 72,
+
+			// Высота по тексту, а не числом: строк в подсказке четыре,
+			// по-русски они длиннее и переносятся, и заданная высота
+			// обрезала бы последнюю. У подписи, пристыкованной сверху,
+			// AutoSize меняет именно высоту.
+			AutoSize = true,
+
+			// Строки нарочно короткие: подпись с AutoSize не переносит
+			// текст, а растёт вширь, и длинная строка ушла бы за край
+			// окна. По-русски они длиннее английских, с них и мерка.
 			Text = L.T(
 				"Click a shortcut and press the new key combination.\r\n"
 				+ "Click a mouse assignment, then click the mouse button you want,\r\n"
-				+ "holding the modifiers. Esc cancels, Delete clears.\r\n"
-				+ "Duplicates are shown in red. Muted lines are a reference and cannot be changed.")
+				+ "holding the modifiers.\r\n"
+				+ "Esc cancels, Delete clears. Duplicates are shown in red.\r\n"
+				+ "Muted lines are a reference and cannot be changed.")
 		};
 
 		_table = new TableLayoutPanel

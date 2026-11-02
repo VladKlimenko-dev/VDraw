@@ -94,6 +94,7 @@ public partial class MainForm
 		// Тема оформления и отбор объектов
 		Icon(_theme_toggle_but, "img-contrast");
 		Icon(_sel_filter_but, "sel-filter");
+		Icon(_settings_but, "menu_settings");
 
 		// Правка
 		Icon(undo_but, "undo");

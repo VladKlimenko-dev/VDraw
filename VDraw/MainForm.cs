@@ -127,6 +127,42 @@ public partial class MainForm : Form
 		main_toolbar_panel.Controls.SetChildIndex(_theme_toggle_but, 1);
 	}
 
+	private Button _settings_but = null!;
+
+	/// <summary>
+	/// Кнопка настроек рядом со справкой.
+	///
+	/// В коде, а не в дизайнере, по той же причине, что кнопка смены темы:
+	/// файл дизайнера правится пользователем, и добавленное туда пропало бы
+	/// при первой же перегенерации.
+	/// </summary>
+	private void InitSettingsButton()
+	{
+		_settings_but = new Button
+		{
+			Name = "settings_but",
+			Dock = help_but.Dock,
+			MinimumSize = help_but.MinimumSize,
+			Size = help_but.Size,
+			Margin = help_but.Margin,
+			Padding = help_but.Padding,
+			UseVisualStyleBackColor = true,
+			TabStop = false,
+			Text = string.Empty
+		};
+
+		_settings_but.Click += (_, _) => menu_settings_Click(this, EventArgs.Empty);
+
+		toolTip.SetToolTip(_settings_but, L.T("Application settings"));
+
+		main_toolbar_panel.Controls.Add(_settings_but);
+
+		// Стыковка слева раскладывает детей от последнего к первому,
+		// поэтому нулевой индекс ставит кнопку правее всех — сразу
+		// за справкой, темой и языком.
+		main_toolbar_panel.Controls.SetChildIndex(_settings_but, 0);
+	}
+
 	public MainForm()
 	{
 		Icon = new Icon("Resources\\vdraw.ico");
@@ -149,6 +185,7 @@ public partial class MainForm : Form
 		// а исходные английские тексты к этому моменту уже запомнены.
 		InitThemeToggleButton();
 		InitSelectionFilterButton();
+		InitSettingsButton();
 
 		// После заполнения списков и до перекраски: представление снимает
 		// с модели и значение, и состав списка, а красить спрятанную
@@ -573,6 +610,9 @@ public partial class MainForm : Form
 
 		if (_sel_filter_but != null)
 			toolTip.SetToolTip(_sel_filter_but, L.T("Selection filter"));
+
+		if (_settings_but != null)
+			toolTip.SetToolTip(_settings_but, L.T("Application settings"));
 	}
 
 	#region Подсказки по группам
@@ -2799,12 +2839,13 @@ public partial class MainForm : Form
 			Title = L.T("Import"),
 			InitialDirectory = Document.DefaultDocumentsFolder,
 			Filter = L.Filter(
-				"All supported (*.vdr;*.json;*.pdf;*.vdrs;*.vss;*.vssx;*.png;*.jpg;*.bmp)" +
-				"|*.vdr;*.json;*.pdf;*.vdrs;*.vsdm;*.vss;*.vssx;*.vssm;*.vsx;*.vdx;" +
+				"All supported (*.vdr;*.json;*.pdf;*.svg;*.vdrs;*.vss;*.vssx;*.png;*.jpg;*.bmp)" +
+				"|*.vdr;*.json;*.pdf;*.svg;*.vdrs;*.vsdm;*.vss;*.vssx;*.vssm;*.vsx;*.vdx;" +
 				ImageFilterExtensions + "|" +
 				"VDraw document (*.vdr)|*.vdr|" +
 				"JSON files (*.json)|*.json|" +
 				"PDF document (*.pdf)|*.pdf|" +
+				"SVG drawing (*.svg)|*.svg|" +
 				ImageFilter + "|" +
 				CustomShapeFilter + "|" +
 				StencilFilter + "|" +
@@ -2835,6 +2876,7 @@ public partial class MainForm : Form
 		var customShapes = new List<string>();
 		var stencils = new List<string>();
 		var images = new List<string>();
+		var drawings = new List<string>();
 
 		foreach (var file in files)
 		{
@@ -2842,6 +2884,10 @@ public partial class MainForm : Form
 			{
 				case ".pdf":
 					ImportPdfDocument(file);
+					break;
+
+				case ".svg":
+					drawings.Add(file);
 					break;
 
 				case ".png":
@@ -2883,6 +2929,7 @@ public partial class MainForm : Form
 		ImportCustomShapeFiles(customShapes);
 		ImportVisioStencilFiles(stencils);
 		ImportImageFiles(images);
+		ImportSvgFiles(drawings);
 	}
 
 	/// <summary>

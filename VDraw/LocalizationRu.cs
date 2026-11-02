@@ -531,16 +531,19 @@ internal static class LocalizationRu
 		["none"] = "нет",
 		["Measurement default digits"] = "Знаков после точки в измерениях",
 		["Selection filter"] = "Фильтр выделения",
+		["Application settings"] = "Настройки приложения",
 		["Light / dark theme"] = "Светлая / тёмная тема",
 
 		["Click a shortcut and press the new key combination.\r\n"
 			+ "Click a mouse assignment, then click the mouse button you want,\r\n"
-			+ "holding the modifiers. Esc cancels, Delete clears.\r\n"
-			+ "Duplicates are shown in red. Muted lines are a reference and cannot be changed."] =
+			+ "holding the modifiers.\r\n"
+			+ "Esc cancels, Delete clears. Duplicates are shown in red.\r\n"
+			+ "Muted lines are a reference and cannot be changed."] =
 			"Щёлкните сочетание и нажмите новые клавиши.\r\n"
 			+ "Щёлкните назначение мыши, затем щёлкните нужной кнопкой,\r\n"
-			+ "удерживая модификаторы. Esc — отмена, Delete — очистить.\r\n"
-			+ "Совпадения показаны красным. Приглушённые строки — справка, они не настраиваются.",
+			+ "удерживая модификаторы.\r\n"
+			+ "Esc — отмена, Delete — очистить. Совпадения показаны красным.\r\n"
+			+ "Приглушённые строки — справка, они не настраиваются.",
 
 		// Группы действий
 		["Tools"] = "Инструменты",
@@ -859,8 +862,26 @@ internal static class LocalizationRu
 		["Windows metafile (*.wmf)"] = "Метафайл WMF (*.wmf)",
 		["Visio drawing or stencil (*.vsdx;*.vsdm;*.vss;*.vssx;*.vssm;*.vsx;*.vdx)"] =
 			"Чертёж или клипарт Visio (*.vsdx;*.vsdm;*.vss;*.vssx;*.vssm;*.vsx;*.vdx)",
-		["All supported (*.vdr;*.json;*.pdf;*.vdrs;*.vss;*.vssx;*.png;*.jpg;*.bmp)"] =
-			"Все поддерживаемые (*.vdr;*.json;*.pdf;*.vdrs;*.vss;*.vssx;*.png;*.jpg;*.bmp)",
+		["All supported (*.vdr;*.json;*.pdf;*.svg;*.vdrs;*.vss;*.vssx;*.png;*.jpg;*.bmp)"] =
+			"Все поддерживаемые (*.vdr;*.json;*.pdf;*.svg;*.vdrs;*.vss;*.vssx;*.png;*.jpg;*.bmp)",
+		["SVG drawing (*.svg)"] = "Рисунок SVG (*.svg)",
+
+		#endregion
+
+		#region Импорт SVG
+
+		["Import SVG"] = "Импорт SVG",
+		["Failed to import SVG.\r\n\r\n{0}"] = "Не удалось импортировать SVG.\r\n\r\n{0}",
+		["These files contain nothing importable:"] = "В этих файлах нет ничего, что можно вставить:",
+		["{0}: this is not an SVG file."] = "{0}: это не файл SVG.",
+		["Text from the SVG file was not imported."] = "Текст из SVG не переносится.",
+		["Raster images from the SVG file were not imported."] =
+			"Растровые вставки из SVG не переносятся.",
+		["References to definitions (use) were not imported."] =
+			"Ссылки на определения (use) не переносятся.",
+		["Gradients from the SVG file were not imported."] = "Градиенты из SVG не переносятся.",
+		["Filters from the SVG file were not imported."] = "Фильтры из SVG не переносятся.",
+		["Unknown SVG element: {0}."] = "Непонятный элемент SVG: {0}.",
 
 		#endregion
 
