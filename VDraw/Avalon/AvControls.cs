@@ -323,6 +323,91 @@ public sealed class AvPropertyRow : Panel
 		TextTrimming = TextTrimming.CharacterEllipsis
 	};
 
+	/// <summary>
+	/// Ширина, при которой подпись видна целиком.
+	///
+	/// Нужна выравниванию колонки: в дизайне ширина подписей задана
+	/// под английский текст, а русский в среднем длиннее, и подписи
+	/// обрезались многоточием.
+	/// </summary>
+	public double DesiredLabelWidth
+	{
+		get
+		{
+			_label.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+
+			return _label.DesiredSize.Width + (IndentLabel ? Indent : 0);
+		}
+	}
+
+	/// <summary>
+	/// Выравнивает колонку подписей всех строк поддерева по самой длинной.
+	///
+	/// Одно число на все строки, а не ширина по месту у каждой: колонка
+	/// значений обязана начинаться на одной вертикали, иначе панель
+	/// рассыпается на разнобой.
+	///
+	/// limit удерживает колонку от захвата всей ширины: подпись длиной
+	/// в панель не оставила бы места полю, ради которого она подпись.
+	/// Что не поместилось и в limit, по-прежнему свернётся многоточием,
+	/// но уже на деле редком.
+	/// </summary>
+	public static void AlignLabels(Control root, double limit)
+	{
+		var rows = new List<AvPropertyRow>();
+
+		Collect(root, rows);
+
+		if (rows.Count == 0)
+			return;
+
+		double needed = AvTheme.LabelWidth;
+
+		foreach (var row in rows)
+			needed = Math.Max(needed, row.DesiredLabelWidth + 6);
+
+		needed = Math.Min(needed, Math.Max(AvTheme.LabelWidth, limit));
+
+		foreach (var row in rows)
+		{
+			row.LabelWidth = needed;
+			row.InvalidateMeasure();
+		}
+	}
+
+	/// <summary>
+	/// Обход по содержимому, а не по визуальному дереву: выравнивание
+	/// считается сразу после сборки, когда контролы ещё не показаны
+	/// и визуального дерева у них нет.
+	/// </summary>
+	private static void Collect(Control control, List<AvPropertyRow> rows)
+	{
+		if (control is AvPropertyRow row)
+		{
+			rows.Add(row);
+
+			// Внутрь строки идти незачем: вложенных строк не бывает.
+			return;
+		}
+
+		switch (control)
+		{
+			case Panel panel:
+				foreach (var child in panel.Children)
+					Collect(child, rows);
+
+				break;
+
+			case Decorator decorator when decorator.Child is Control child:
+				Collect(child, rows);
+				break;
+
+			case ContentControl content when content.Content is Control inner:
+				Collect(inner, rows);
+				break;
+		}
+	}
+
 	public void AddEditor(Control editor)
 	{
 		if (editor == null)
@@ -337,7 +422,26 @@ public sealed class AvPropertyRow : Panel
 		_fixedWidths[editor] = width;
 	}
 
+	/// <summary>
+	/// Ширина, посчитанная при последнем измерении. Заполняется
+	/// в MeasureEditors и читается при раскладке, чтобы обе половины
+	/// работали с одним числом.
+	/// </summary>
+	private readonly Dictionary<Control, double> _effectiveWidths = new();
+
 	private double WidthOf(Control editor)
+	{
+		if (_effectiveWidths.TryGetValue(editor, out double effective))
+			return effective;
+
+		if (_fixedWidths.TryGetValue(editor, out double w))
+			return w;
+
+		return double.IsNaN(editor.Width) ? double.NaN : editor.Width;
+	}
+
+	/// <summary>Заданная ширина без поправки на содержимое.</summary>
+	private double RequestedWidthOf(Control editor)
 	{
 		if (_fixedWidths.TryGetValue(editor, out double w))
 			return w;
@@ -374,14 +478,31 @@ public sealed class AvPropertyRow : Panel
 		double fixedSum = 0;
 		int flexible = 0;
 
+		_effectiveWidths.Clear();
+
 		foreach (var editor in visible)
 		{
-			double w = WidthOf(editor);
+			double w = RequestedWidthOf(editor);
 
 			if (double.IsNaN(w))
+			{
 				flexible++;
-			else
-				fixedSum += w;
+				continue;
+			}
+
+			// Заданная ширина — это минимум, а не предел.
+			//
+			// Числа проставлены под английские подписи: «Add pattern»
+			// в девяносто точек помещается, «Добавить штрих» — нет,
+			// и кнопка показывала обрезанное слово. Померив содержимое,
+			// берём большее из двух, но не больше отведённой строке
+			// ширины: иначе одна кнопка вытеснила бы соседнюю.
+			editor.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+
+			w = Math.Min(Math.Max(w, editor.DesiredSize.Width), Math.Max(24, area - gaps));
+
+			_effectiveWidths[editor] = w;
+			fixedSum += w;
 		}
 
 		double flexWidth = flexible > 0

@@ -416,6 +416,16 @@ public sealed class AvPropertyPanel : UserControl
 			_root.Add(BuildLinkPanel(linkCurve));
 		}
 
+		// Колонка подписей — одной ширины на всю панель, по самой длинной
+		// подписи. Потолок — половина панели: подпись шире неё не оставила
+		// бы места полю, ради которого она подпись.
+		// До первой раскладки ширины панели ещё нет — тогда берётся
+		// её обычная ширина, иначе подписи остались бы ужатыми
+		// до первой перерисовки.
+		double limit = Bounds.Width > 0 ? Bounds.Width / 2 : 160;
+
+		AvPropertyRow.AlignLabels(_root, limit);
+
 		ArrangeUi();
 
 		if (IsAttached)

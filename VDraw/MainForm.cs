@@ -155,6 +155,10 @@ public partial class MainForm : Form
 		// модель уже незачем.
 		ReplaceToolbarControls();
 
+		// Последним среди правок полос: к этому моменту на них стоит всё,
+		// что на них будет, и подписи уже переведены.
+		AutoSizeToolbars();
+
 		WinFormsTheme.Register(this);
 		ThemeImages.RegisterMainFormImages(this);
 
@@ -175,6 +179,48 @@ public partial class MainForm : Form
 	/// См. AvToolbarSwap: сами контролы остаются на месте как модель,
 	/// меняется только то, что видно.
 	/// </summary>
+	/// <summary>
+	/// Полосы инструментов подстраиваются по ширине под своё содержимое.
+	///
+	/// В дизайнере у каждой полосы проставлена своя ширина, посчитанная
+	/// под английские подписи. Стоит подписям стать длиннее — от перевода,
+	/// от нового контрола, от более крупного шрифта, — и содержимое
+	/// в заданную ширину не влезает. FlowLayoutPanel в этом случае
+	/// переносит лишнее на следующий ряд, а высоты у полосы ровно
+	/// на один ряд: кнопки не исчезают, но уезжают под нижний край
+	/// и пропадают с глаз.
+	///
+	/// Перенос запрещается, ширина считается по содержимому. Числа
+	/// из дизайнера при этом перестают что-либо значить, и его
+	/// перегенерация ничего не ломает: ширину задаёт содержимое,
+	/// а не файл.
+	///
+	/// Если суммарная ширина полос больше окна, крайние уходят за правый
+	/// край — это видно сразу и лечится шириной окна, в отличие от
+    /// молча съехавшего вниз ряда.
+	/// </summary>
+	private void AutoSizeToolbars()
+	{
+		foreach (var flow in FindFlowPanels(this))
+		{
+			flow.WrapContents = false;
+			flow.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+			flow.AutoSize = true;
+		}
+	}
+
+	private static IEnumerable<FlowLayoutPanel> FindFlowPanels(Control root)
+	{
+		foreach (Control child in root.Controls)
+		{
+			if (child is FlowLayoutPanel flow)
+				yield return flow;
+
+			foreach (var nested in FindFlowPanels(child))
+				yield return nested;
+		}
+	}
+
 	private void ReplaceToolbarControls()
 	{
 		Ui.Avalon.AvToolbarSwap.ReplaceAll(new Control[]
