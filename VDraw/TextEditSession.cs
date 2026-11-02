@@ -52,6 +52,17 @@ public sealed class TextEditSession
 	/// <summary>Идёт ли выделение протяжкой мыши.</summary>
 	public bool Dragging { get; set; }
 
+	/// <summary>
+	/// Колонка, к которой стремится каретка при ходьбе вверх и вниз.
+	///
+	/// Без неё проход через короткую строку необратимо сдвигал бы
+	/// каретку влево: вниз на «ab» — колонка 2, и дальше вниз уже
+	/// от двойки. Так ведут себя все редакторы: колонка запоминается
+	/// и держится, пока не двинут каретку по горизонтали или не правят
+	/// текст. −1 — колонка не загадана.
+	/// </summary>
+	private int _desiredColumn = -1;
+
 	/// <summary>Видна ли каретка сейчас. Мигание ведёт вызывающий.</summary>
 	public bool CaretVisible { get; set; } = true;
 
@@ -59,6 +70,44 @@ public sealed class TextEditSession
 	{
 		get => Shape.Text ?? string.Empty;
 		private set => Shape.Text = value;
+	}
+
+	private SKFont? _font;
+	private (string Family, float Size, bool Bold, bool Italic) _fontKey;
+
+	/// <summary>
+	/// Шрифт надписи, живущий столько же, сколько сеанс.
+	///
+	/// Создаётся не на каждый запрос: геометрия спрашивает его по три
+	/// раза за перерисовку, а мигающая каретка перерисовывает холст
+	/// дважды в секунду — каждый такой шрифт тянет за собой начертание,
+	/// которое освобождается не сразу.
+	///
+	/// Настройки шрифта меняют прямо во время набора, из панели свойств,
+	/// поэтому хранится и то, из чего он сделан: разошлось — пересоздаём.
+	/// </summary>
+	internal SKFont Font
+	{
+		get
+		{
+			var key = (Shape.FontFamily, Shape.FontSizeMm, Shape.Bold, Shape.Italic);
+
+			if (_font == null || _fontKey != key)
+			{
+				_font?.Dispose();
+				_font = Shape.CreateEditFont();
+				_fontKey = key;
+			}
+
+			return _font;
+		}
+	}
+
+	/// <summary>Отпускает шрифт. Зовётся при выходе из правки.</summary>
+	public void Release()
+	{
+		_font?.Dispose();
+		_font = null;
 	}
 
 	/// <summary>
@@ -235,6 +284,13 @@ public sealed class TextEditSession
 
 	public void SetCaret(int index, bool extend)
 	{
+		_desiredColumn = -1;
+
+		SetCaretKeepingColumn(index, extend);
+	}
+
+	private void SetCaretKeepingColumn(int index, bool extend)
+	{
 		Caret = Math.Clamp(index, 0, Text.Length);
 
 		if (!extend)
@@ -266,6 +322,9 @@ public sealed class TextEditSession
 	{
 		var (line, column) = LineAndColumn(Caret);
 
+		if (_desiredColumn < 0)
+			_desiredColumn = column;
+
 		var lines = Lines();
 		int target = Math.Clamp(line + delta, 0, lines.Count - 1);
 
@@ -278,9 +337,12 @@ public sealed class TextEditSession
 			return;
 		}
 
-		int column2 = Math.Min(column, lines[target].Length);
+		int wanted = Math.Min(_desiredColumn, lines[target].Length);
+		int keep = _desiredColumn;
 
-		SetCaret(LineStart(target) + column2, extend);
+		SetCaretKeepingColumn(LineStart(target) + wanted, extend);
+
+		_desiredColumn = keep;
 	}
 
 	public void MoveToLineEdge(bool toStart, bool extend)
@@ -308,6 +370,13 @@ public sealed class TextEditSession
 			return;
 
 		index = Math.Clamp(index, 0, text.Length - 1);
+
+		// Щелчок в правую половину последней буквы слова даёт границу
+		// ЗА словом, то есть номер пробела. Без поправки двойной щелчок
+		// по концу слова пропускал бы пробелы в обе стороны и забирал
+		// два слова разом — а это самый частый способ попасть по слову.
+		if (!IsWordChar(text[index]) && index > 0 && IsWordChar(text[index - 1]))
+			index--;
 
 		// Щелчок по пробелам выделяет сами пробелы, а не слова по обе
 		// стороны от них: иначе двойной щелчок в промежутке между словами

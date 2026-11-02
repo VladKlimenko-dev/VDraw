@@ -1781,6 +1781,12 @@ public partial class MainForm : Form
 		if (cur_doc != null && !cur_doc.Close())
 			return;
 
+		// Правка надписи закрывается при старом документе: её шаг отмены
+		// принадлежит ему. Закрой сеанс после подмены — и шаг с текстом
+		// чужой фигуры лёг бы в историю только что созданного документа,
+		// а тот сразу оказался бы «изменённым».
+		_mainView?.EndTextEdit();
+
 		cur_doc = doc_new;
 
 		CurrentPage = doc_new.pages[0];
@@ -2749,6 +2755,10 @@ public partial class MainForm : Form
 		if (cur_doc != null && !cur_doc.Close())
 			return;
 
+		// То же, что и при создании: сеанс закрывается, пока текущим
+		// остаётся прежний документ.
+		_mainView?.EndTextEdit();
+
 		cur_doc = opened;
 		CurrentPage = opened.ActivePage ?? opened.pages[0];
 		opened.ActivePage = CurrentPage;
@@ -3568,6 +3578,14 @@ public partial class MainForm : Form
 	{
 		if (_mainView == null || _mainView.CurrentPage == null)
 			return;
+
+		// Правка надписи закрывается ДО удаления, а не после.
+		//
+		// Иначе её шаг отмены ложится в историю поверх удаления, и первый
+		// Ctrl+Z внешне не делает ничего: он правит текст фигуры, которой
+		// на листе уже нет. Снятие выделения при удалении само закрыло бы
+		// сеанс, но позже, чем нужно.
+		_mainView.EndTextEdit();
 
 		// В режиме узлов Delete относится к УЗЛАМ, а не к фигуре.
 		//

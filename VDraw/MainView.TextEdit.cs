@@ -92,6 +92,8 @@ public sealed partial class MainView
 
 		StopCaretBlink();
 
+		session.Release();
+
 		var shape = session.Shape;
 		string after = shape.Text ?? string.Empty;
 
@@ -264,8 +266,19 @@ public sealed partial class MainView
 	/// </summary>
 	private bool TextEditMouseDown(MouseEventArgs e, SKPoint world)
 	{
-		if (_textEdit == null || e.Button != MouseButtons.Left)
+		if (_textEdit == null)
 			return false;
+
+		if (e.Button != MouseButtons.Left)
+		{
+			// Правая кнопка мимо надписи заканчивает правку: иначе
+			// контекстное меню фигуры открывалось бы поверх каретки,
+			// а сеанс продолжал бы считать себя главным по клавиатуре.
+			if (!HitsEditedText(world))
+				EndTextEdit();
+
+			return false;
+		}
 
 		if (!HitsEditedText(world))
 		{
@@ -288,6 +301,17 @@ public sealed partial class MainView
 	{
 		if (_textEdit is not { Dragging: true })
 			return false;
+
+		// Отпускание кнопки могло не дойти: модальное окно, открытое
+		// из обработчика, забирает его себе, как и переключение задач.
+		// Без этой проверки каретка потом ездила бы за курсором
+		// с отпущенной кнопкой, а весь разбор движения мыши молчал бы.
+		if ((MouseButtons & MouseButtons.Left) != MouseButtons.Left)
+		{
+			_textEdit.Dragging = false;
+
+			return false;
+		}
 
 		PlaceCaret(world, extend: true);
 
@@ -314,6 +338,11 @@ public sealed partial class MainView
 
 		session.SelectWordAt(TextEditGeometry.IndexAt(session, world));
 
+		// Протяжку, включённую вторым нажатием, снимаем: иначе дрожание
+		// руки до отпускания кнопки схлопнуло бы выделенное слово
+		// обратно в точку под курсором.
+		session.Dragging = false;
+
 		TouchCaret();
 		InvalidateCanvas();
 
@@ -339,7 +368,12 @@ public sealed partial class MainView
 			return false;
 
 		bool shift = (e.Modifiers & Keys.Shift) == Keys.Shift;
-		bool ctrl = (e.Modifiers & Keys.Control) == Keys.Control;
+
+		// Alt исключён намеренно: AltGr приходит как Ctrl+Alt, и на
+		// раскладках, где им набирают символы третьего уровня, AltGr+A
+		// означал бы «выделить всё» вместо буквы.
+		bool ctrl = (e.Modifiers & Keys.Control) == Keys.Control
+			&& (e.Modifiers & Keys.Alt) != Keys.Alt;
 
 		switch (e.KeyCode)
 		{
@@ -417,13 +451,27 @@ public sealed partial class MainView
 				PasteIntoText(session);
 				break;
 
-			case Keys.Z when ctrl:
-				session.Undo();
+			// Ctrl+Shift+Z — привычный повтор, а не вторая отмена.
+			case Keys.Z when ctrl && shift:
+			case Keys.Y when ctrl:
+				session.Redo();
 				TextChangedDuringEdit();
 				break;
 
-			case Keys.Y when ctrl:
-				session.Redo();
+			case Keys.Z when ctrl:
+				// Отменять внутри сеанса нечего — значит, пользователь
+				// просит отменить то, что делали с документом до входа
+				// в правку. Сеанс закрывается, и отмена идёт по общей
+				// истории: проглотить клавишу молча значило бы оставить
+				// нажатие без всякого ответа.
+				if (!session.Undo())
+				{
+					EndTextEdit();
+					TryHandleUndoShortcut(Keys.Z);
+
+					break;
+				}
+
 				TextChangedDuringEdit();
 				break;
 

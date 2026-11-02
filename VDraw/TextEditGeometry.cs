@@ -155,7 +155,7 @@ public static class TextEditGeometry
 		var shape = session.Shape;
 		var lines = session.Lines();
 
-		using var font = shape.CreateEditFont();
+		var font = session.Font;
 
 		var metrics = font.Metrics;
 		var world = shape.GetWorldTransform();
@@ -195,7 +195,7 @@ public static class TextEditGeometry
 		if (layout == null || layout.Lines.Count == 0)
 			return spots;
 
-		using var font = shape.CreateEditFont();
+		var font = session.Font;
 
 		var metrics = font.Metrics;
 		var world = shape.GetWorldTransform();
@@ -316,7 +316,17 @@ public static class TextEditGeometry
 
 	#region Меры
 
-	/// <summary>Смещение начала символа от левого края строки.</summary>
+	/// <summary>
+	/// Смещение начала символа от левого края строки.
+	///
+	/// Считается ровно так, как текст и рисуется. Без межсимвольного
+	/// интервала строка выводится одним вызовом, и ширина берётся
+	/// у подстроки целиком — вместе с кернингом, то есть со сближением
+	/// отдельных пар букв. С интервалом текст раскладывается посимвольно,
+	/// кернинга в нём нет, и ширина складывается из продвижений: мерь
+	/// её подстрокой — и каретка уезжала бы тем дальше, чем длиннее
+	/// строка.
+	/// </summary>
 	private static float ColumnOffset(SKFont font, TextShape shape, string line, int column)
 	{
 		column = Math.Clamp(column, 0, line.Length);
@@ -324,11 +334,17 @@ public static class TextEditGeometry
 		if (column == 0)
 			return 0f;
 
-		// Measure не добавляет интервал после последнего символа,
-		// а каретка стоит именно после него: без этой добавки при
-		// заданном межсимвольном интервале она налезала бы на букву.
-		return TextGlyphs.Measure(font, line[..column], shape.CharacterSpacingMm)
-			+ shape.CharacterSpacingMm;
+		float spacing = shape.CharacterSpacingMm;
+
+		if (spacing == 0f)
+			return TextGlyphs.Measure(font, line[..column], 0f);
+
+		float offset = 0f;
+
+		for (int i = 0; i < column; i++)
+			offset += TextGlyphs.GetCharAdvance(font, line[i], spacing);
+
+		return offset;
 	}
 
 	private static float DistanceToSegment(SKPoint p, SKPoint a, SKPoint b)

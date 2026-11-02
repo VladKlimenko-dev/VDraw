@@ -2030,7 +2030,10 @@ public sealed partial class MainView : SKGLControl
 			_interaction.Selection.Count == 1 &&
 			TextAlongShapeAdorner.IsApplicable(_interaction.Selection[0]);
 
-		if (!IsCurveEditMode)
+		// Во время правки надписи рамка и маркеры фигуры не рисуются:
+		// они перекрывают текст, который в этот момент набирают, и сбивают
+		// с толку — фигура сейчас в другом режиме, а выглядит как обычно.
+		if (!IsCurveEditMode && !IsTextEditing)
 		{
 			SelectionAdorner.Draw(canvas, this, _interaction);
 
@@ -2045,7 +2048,7 @@ public sealed partial class MainView : SKGLControl
 
 		DrawMarqueeRect(canvas, _interaction.ActiveOperation);
 
-		if (_interaction.Selection.Count == 1 && !isTextAlongShapeSelected)
+		if (_interaction.Selection.Count == 1 && !isTextAlongShapeSelected && !IsTextEditing)
 		{
 			ShapePropertyAdorner.Draw(canvas, this, _interaction);
 			ShapePointAdorner.Draw(canvas, this, _interaction);
@@ -3533,6 +3536,17 @@ public sealed partial class MainView : SKGLControl
 			_autoScrollTimer.Stop();
 			_autoScrollTimer.Tick -= AutoScrollTick;
 			_autoScrollTimer.Dispose();
+
+			// Таймер мигания каретки создаётся при первом входе в правку
+			// надписи и живёт до конца; закрытое с открытой правкой окно
+			// оставляло бы его работать.
+			if (_caretTimer != null)
+			{
+				_caretTimer.Stop();
+				_caretTimer.Tick -= OnCaretBlink;
+				_caretTimer.Dispose();
+				_caretTimer = null;
+			}
 
 			imageEditTool = null;
 
