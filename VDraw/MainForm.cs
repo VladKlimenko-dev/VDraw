@@ -2180,6 +2180,10 @@ public partial class MainForm : Form
 			ImageScalingSize = new Size(48, 48)
 		};
 
+		// Меню создано в коде и в обход дерева формы не попадает,
+		// поэтому тему ему задаём сами.
+		WinFormsTheme.ApplyToolStrip(menu);
+
 		void SelectCircle(ShapeToolKind kind, System.Drawing.Image image)
 		{
 			_selectedCircleTool = kind;
@@ -2232,6 +2236,10 @@ public partial class MainForm : Form
 			ImageScalingSize = new Size(48, 48)
 		};
 
+		// Меню создано в коде и в обход дерева формы не попадает,
+		// поэтому тему ему задаём сами.
+		WinFormsTheme.ApplyToolStrip(menu);
+
 		void SelectEllipse(ShapeToolKind kind, System.Drawing.Image image)
 		{
 			_selectedEllipseTool = kind;
@@ -2283,6 +2291,10 @@ public partial class MainForm : Form
 			ShowImageMargin = true,
 			ImageScalingSize = new Size(48, 48)
 		};
+
+		// Меню создано в коде и в обход дерева формы не попадает,
+		// поэтому тему ему задаём сами.
+		WinFormsTheme.ApplyToolStrip(menu);
 
 		void SelectRectangle(ShapeToolKind kind, System.Drawing.Image image)
 		{

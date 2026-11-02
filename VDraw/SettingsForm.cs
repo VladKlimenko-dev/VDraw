@@ -45,6 +45,11 @@ public sealed partial class SettingsForm : Form
 	public SettingsForm()
 	{
 		InitializeComponent();
+
+		// До Register и до Localization: контрол должен существовать
+		// к моменту, когда форму красят и переводят.
+		InitMeasurementDigits();
+
 		WinFormsTheme.Register(this);
 
 		BindColors();
@@ -60,6 +65,43 @@ public sealed partial class SettingsForm : Form
 		resetButton.Click += OnRestoreDefaults;
 
 		LoadFromSettings();
+	}
+
+	/// <summary>Знаков после запятой у нового размера.</summary>
+	private NumericUpDown numMeasurementDigits = null!;
+
+	private Label lblMeasurementDigits = null!;
+
+	/// <summary>
+	/// Добавляет на вкладку «Shape defaults» поле точности размеров.
+	///
+	/// В коде, а не в дизайнере: файл дизайнера пользователь правит сам,
+	/// и добавленный туда контрол пропал бы при первой же перегенерации.
+	/// Положение и размеры взяты у соседней строки, чтобы колонка
+	/// подписей и колонка полей остались ровными.
+	/// </summary>
+	private void InitMeasurementDigits()
+	{
+		lblMeasurementDigits = new Label
+		{
+			AutoSize = false,
+			Location = new Point(lblPatternLength.Left, lblPatternLength.Bottom + 12),
+			Size = lblPatternLength.Size,
+			Text = "Measurement default digits"
+		};
+
+		numMeasurementDigits = new NumericUpDown
+		{
+			Location = new Point(numPatternLength.Left, numPatternLength.Bottom + 12),
+			Size = numPatternLength.Size,
+			Minimum = 0,
+			Maximum = 6,
+			DecimalPlaces = 0,
+			Increment = 1
+		};
+
+		tabShapes.Controls.Add(lblMeasurementDigits);
+		tabShapes.Controls.Add(numMeasurementDigits);
 	}
 
 	/// <summary>
@@ -116,6 +158,7 @@ public sealed partial class SettingsForm : Form
 
 		SetNumber(numLineThickness, Settings.shape_default_line_thickness_mm);
 		SetNumber(numPatternLength, Settings.shape_default_pattern_length_mm);
+		SetNumber(numMeasurementDigits, Settings.measurement_default_digits);
 
 		SetNumber(numHandleSize, Settings.handle_size);
 		SetNumber(numHandleLineWidth, Settings.handle_line_thickness);
@@ -153,6 +196,7 @@ public sealed partial class SettingsForm : Form
 
 		Settings.shape_default_line_thickness_mm = (float)numLineThickness.Value;
 		Settings.shape_default_pattern_length_mm = (float)numPatternLength.Value;
+		Settings.measurement_default_digits = (int)numMeasurementDigits.Value;
 
 		Settings.handle_size = (float)numHandleSize.Value;
 		Settings.handle_line_thickness = (float)numHandleLineWidth.Value;
@@ -364,6 +408,7 @@ public static class SettingsStore
 
 		Num("shape_line_thickness_mm", () => Settings.shape_default_line_thickness_mm, v => Settings.shape_default_line_thickness_mm = v);
 		Num("shape_pattern_length_mm", () => Settings.shape_default_pattern_length_mm, v => Settings.shape_default_pattern_length_mm = v);
+		Int("measurement_digits", () => Settings.measurement_default_digits, v => Settings.measurement_default_digits = v);
 
 		Num("handle_size", () => Settings.handle_size, v => Settings.handle_size = v);
 		Num("handle_line_thickness", () => Settings.handle_line_thickness, v => Settings.handle_line_thickness = v);

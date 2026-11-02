@@ -61,6 +61,8 @@ public partial class MainForm
 		// появились вместе с набором SVG, и без него они не показывались бы.
 		var menu = new ContextMenuStrip { ShowImageMargin = true };
 
+		WinFormsTheme.ApplyToolStrip(menu);
+
 		// Меню одноразовое: без освобождения на каждый щелчок оставался бы
 		// висеть неуправляемый дескриптор окна.
 		menu.Closed += (_, _) => menu.BeginInvoke(new Action(menu.Dispose));

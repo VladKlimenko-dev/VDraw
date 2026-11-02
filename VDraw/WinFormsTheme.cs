@@ -98,6 +98,22 @@ public static class WinFormsTheme
 		=> control.GetType().Assembly == typeof(WinFormsTheme).Assembly
 			&& control is not Form;
 
+	/// <summary>
+	/// Красит полосу или меню, созданные в коде.
+	///
+	/// Обход дерева их не достаёт: контекстное меню не лежит в Controls
+	/// формы. Поэтому его нужно позвать вручную — при создании меню
+	/// и при каждой смене темы.
+	/// </summary>
+	public static void ApplyToolStrip(ToolStrip strip)
+	{
+		var pal = SkUiTheme.Current;
+
+		strip.Renderer = new ThemedToolStripRenderer(pal);
+		strip.BackColor = ToColor(pal.PanelBack);
+		strip.ForeColor = ToColor(pal.Text);
+	}
+
 	private static void ApplyToOne(Control control, SkUiPalette pal)
 	{
 		switch (control)

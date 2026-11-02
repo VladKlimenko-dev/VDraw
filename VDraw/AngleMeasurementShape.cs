@@ -92,7 +92,7 @@ public sealed class AngleMeasurementShape : Shape
 	/// </summary>
 	public bool InvertAngle { get; set; }
 
-	public int Decimals { get; set; } = 1;
+	public int Decimals { get; set; } = Settings.measurement_default_digits;
 
 	/// <summary>Дописывать ли знак градуса.</summary>
 	public bool ShowUnits { get; set; } = true;

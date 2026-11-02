@@ -89,7 +89,7 @@ public sealed class MeasurementShape : Shape, IShapeAnchorHost
 	public float TextOffset { get; set; }
 
 	/// <summary>Знаков после запятой в подписи.</summary>
-	public int Decimals { get; set; } = 2;
+	public int Decimals { get; set; } = Settings.measurement_default_digits;
 
 	/// <summary>
 	/// Множитель отображаемого значения.

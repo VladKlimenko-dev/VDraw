@@ -3,6 +3,8 @@ using System.ComponentModel;
 using System.Drawing;
 using System.Windows.Forms;
 
+using SkiaSharp;
+
 using VDraw.Animation;
 using VDraw.Documents;
 using VDraw.Editing;
@@ -39,11 +41,33 @@ public class SkOptionsButton : Control
 			ControlStyles.SupportsTransparentBackColor,
 			true);
 
-		BackColor = SystemColors.Control;
-		ForeColor = SystemColors.ControlText;
+		BackColor = ToColor(SkUiTheme.Current.PanelBack);
+		ForeColor = ToColor(SkUiTheme.Current.Text);
 		Size = new Size(46, 28);
 		TabStop = true;
+
+		SkUiTheme.ThemeChanged += OnThemeChanged;
 	}
+
+	/// <summary>
+	/// Кнопка рисует себя сама, поэтому обход WinFormsTheme её пропускает
+	/// (см. IsOwnDrawnControl) — цвета она обязана брать из палитры сама.
+	/// Прежде они были взяты у системы, и в тёмной теме кнопка оставалась
+	/// светлой вместе со своим выпадающим меню.
+	/// </summary>
+	private void OnThemeChanged()
+	{
+		BackColor = ToColor(SkUiTheme.Current.PanelBack);
+		ForeColor = ToColor(SkUiTheme.Current.Text);
+
+		if (_dropDownMenu != null)
+			WinFormsTheme.ApplyToolStrip(_dropDownMenu);
+
+		Invalidate();
+	}
+
+	private static Color ToColor(SKColor c)
+		=> Color.FromArgb(c.Alpha, c.Red, c.Green, c.Blue);
 
 	[Category("Appearance")]
 	[Description("Image shown in the main part of the button.")]
@@ -216,8 +240,13 @@ public class SkOptionsButton : Control
 
 	protected override void Dispose(bool disposing)
 	{
-		if (disposing && _dropDownMenu != null)
-			_dropDownMenu.Closed -= DropDownMenu_Closed;
+		if (disposing)
+		{
+			if (_dropDownMenu != null)
+				_dropDownMenu.Closed -= DropDownMenu_Closed;
+
+			SkUiTheme.ThemeChanged -= OnThemeChanged;
+		}
 
 		base.Dispose(disposing);
 	}
@@ -230,27 +259,33 @@ public class SkOptionsButton : Control
 		Rectangle mainRect = MainButtonBounds;
 		Rectangle dropRect = DropDownButtonBounds;
 
-		Color mainBack = BackColor;
-		Color dropBack = BackColor;
-		Color borderColor = SystemColors.ControlDark;
-		Color arrowColor = Enabled ? ForeColor : SystemColors.GrayText;
+		// Цвета берутся из палитры, а не у системы и не осветлением
+		// BackColor: ControlPaint.Light от тёмного фона даёт серую кашу,
+		// а SystemColors в тёмной теме остаются светлыми.
+		var pal = SkUiTheme.Current;
+
+		Color face = ToColor(pal.Surface);
+		Color mainBack = face;
+		Color dropBack = face;
+		Color borderColor = ToColor(pal.Border);
+		Color arrowColor = Enabled ? ToColor(pal.Text) : ToColor(pal.TextMuted);
 
 		if (!Enabled)
 		{
-			mainBack = SystemColors.Control;
-			dropBack = SystemColors.Control;
+			mainBack = ToColor(pal.PanelBack2);
+			dropBack = ToColor(pal.PanelBack2);
 		}
 		else
 		{
 			if (_pressedMain)
-				mainBack = ControlPaint.Dark(BackColor);
+				mainBack = ToColor(pal.Selected);
 			else if (_mouseOverMain)
-				mainBack = ControlPaint.Light(BackColor);
+				mainBack = ToColor(pal.Surface2);
 
 			if (_pressedDropDown || _menuVisible)
-				dropBack = ControlPaint.Dark(BackColor);
+				dropBack = ToColor(pal.Selected);
 			else if (_mouseOverDropDown)
-				dropBack = ControlPaint.Light(BackColor);
+				dropBack = ToColor(pal.Surface2);
 		}
 
 		using (var b = new SolidBrush(mainBack))
