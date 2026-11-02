@@ -196,7 +196,7 @@ public partial class MainForm
 
 		for (int i = 0; i < roots.Count; i++)
 		{
-			bounds[i] = roots[i].GetBounds();
+			bounds[i] = MeasureSvgRoot(roots[i]);
 
 			contentWidth += bounds[i].Width;
 			contentHeight = MathF.Max(contentHeight, bounds[i].Height);
@@ -235,7 +235,7 @@ public partial class MainForm
 			{
 				ScaleSvgRoot(roots[i], scale);
 
-				bounds[i] = roots[i].GetBounds();
+				bounds[i] = MeasureSvgRoot(roots[i]);
 			}
 		}
 
@@ -261,6 +261,46 @@ public partial class MainForm
 	/// пересчёта ужатый в десять раз чертёж превратился бы в кляксу: линии
 	/// остались бы прежними, а расстояния между ними сократились.
 	/// </summary>
+	/// <summary>
+	/// Габариты фигуры, считающиеся и по плоским детям.
+	///
+	/// Своя мерка, а не GroupShape.GetBounds, из-за значков вроде «строку
+	/// вверх»: там четыре строго горизонтальные линии и одна стрелка.
+	/// У горизонтальной линии высота ровно ноль, и в зависимости от того,
+	/// что считает пустым прямоугольником SKRect.IsEmpty, общая коробка
+	/// группы могла бы свестись к одной стрелке — тогда линии вылезли бы
+	/// за ряд влево. Здесь отбрасывается только то, у чего нет ни ширины,
+	/// ни высоты, то есть фигуры вовсе без геометрии.
+	/// </summary>
+	private static SKRect MeasureSvgRoot(Shape shape)
+	{
+		if (shape is not GroupShape group)
+			return shape.GetBounds();
+
+		SKRect result = SKRect.Empty;
+		bool any = false;
+
+		foreach (var child in group.Children)
+		{
+			var b = MeasureSvgRoot(child);
+
+			if (b.Width <= 0f && b.Height <= 0f)
+				continue;
+
+			result = any
+				? new SKRect(
+					MathF.Min(result.Left, b.Left),
+					MathF.Min(result.Top, b.Top),
+					MathF.Max(result.Right, b.Right),
+					MathF.Max(result.Bottom, b.Bottom))
+				: b;
+
+			any = true;
+		}
+
+		return any ? result : SKRect.Empty;
+	}
+
 	private static void ScaleSvgRoot(Shape shape, float scale)
 	{
 		// ApplyWorldTransform, а не правка LocalTransform напрямую:

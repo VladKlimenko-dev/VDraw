@@ -884,6 +884,8 @@ internal static class LocalizationRu
 		["Clipping and masks were not imported: the whole drawing came in."] =
 			"Обрезка и маски не переносятся: рисунок вставлен целиком.",
 		["Dashed strokes came in as solid lines."] = "Пунктирные линии вставлены сплошными.",
+		["Shapes with no fill and no stroke were skipped."] =
+			"Фигуры без заливки и без обводки пропущены: в исходнике они невидимы.",
 		["Unknown SVG element: {0}."] = "Непонятный элемент SVG: {0}.",
 
 		#endregion

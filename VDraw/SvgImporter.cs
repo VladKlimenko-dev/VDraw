@@ -64,6 +64,21 @@ public static class SvgImporter
 		public bool EvenOdd;
 
 		/// <summary>
+		/// Чем разворачивается currentColor.
+		///
+		/// В SVG это цвет текста, заданный свойством color и унаследованный
+		/// от родителя. У нас текста нет, поэтому за него берётся цвет линии
+		/// по умолчанию из настроек приложения: значок, нарисованный «цветом
+		/// текста», ложится на лист тем же цветом, каким рисуются линии.
+		///
+		/// Подставлять вместо currentColor унаследованную заливку нельзя —
+		/// а именно так было: наборы значков, у которых на корне написано
+		/// fill="none" stroke="currentColor", приходили на лист вовсе без
+		/// цвета, то есть невидимыми.
+		/// </summary>
+		public SKColor CurrentColor = Settings.shape_default_line_color;
+
+		/// <summary>
 		/// Заливка или обводка задана ссылкой на определение — градиентом
 		/// или узором. Разобрать её нельзя, и об этом надо предупредить.
 		/// </summary>
@@ -491,6 +506,7 @@ public static class SvgImporter
 			"filter" => L.T("Filters from the SVG file were not imported."),
 			"clip-path" => L.T("Clipping and masks were not imported: the whole drawing came in."),
 			"stroke-dasharray" => L.T("Dashed strokes came in as solid lines."),
+			"invisible" => L.T("Shapes with no fill and no stroke were skipped."),
 			_ => L.T("Unknown SVG element: {0}.", tag)
 		};
 
@@ -632,13 +648,23 @@ public static class SvgImporter
 		if (!string.IsNullOrWhiteSpace(id))
 			shape.Name = id.Trim();
 
+		ApplyStyle(shape, style, matrix);
+
+		// Ни заливки, ни обводки — в исходнике фигура невидима, и класть
+		// её на лист незачем: пользователь получил бы невидимый объект,
+		// который ловится только мышью и мешает выделять остальное.
+		if (!shape.Fill.Enabled && !shape.Stroke.Enabled)
+		{
+			Warn(result, "invisible");
+
+			return;
+		}
+
 		// Заливка ссылкой на определение (градиент, узор) разобрана быть
 		// не может, и предупредить об этом можно только здесь: сами
 		// определения лежат в defs, куда обход не заходит.
 		if (style.PaintServer)
 			Warn(result, "lineargradient");
-
-		ApplyStyle(shape, style, matrix);
 
 		result.Shapes.Add(shape);
 	}
@@ -897,6 +923,10 @@ public static class SvgImporter
 		// Так определено в CSS, и именно на этом порядке держится
 		// экспорт из Illustrator: цвета там лежат в таблице, а не
 		// в атрибутах, и правило обязано перебить атрибут.
+		// color читается первым: от него зависит, во что развернётся
+		// currentColor в заливке и обводке этого же элемента.
+		Set(style, "color", element.Attribute("color")?.Value);
+
 		Set(style, "fill", element.Attribute("fill")?.Value);
 		Set(style, "stroke", element.Attribute("stroke")?.Value);
 		Set(style, "stroke-width", element.Attribute("stroke-width")?.Value);
@@ -942,12 +972,21 @@ public static class SvgImporter
 		{
 			case "fill":
 				style.PaintServer |= IsPaintServer(value);
-				style.Fill = ParseColor(value, style.Fill);
+				style.Fill = ParseColor(value, style.Fill, style.CurrentColor);
 				break;
 
 			case "stroke":
 				style.PaintServer |= IsPaintServer(value);
-				style.Stroke = ParseColor(value, style.Stroke);
+				style.Stroke = ParseColor(value, style.Stroke, style.CurrentColor);
+				break;
+
+			// Свойство color само ничего не красит — оно задаёт то,
+			// во что разворачивается currentColor у этого элемента
+			// и у его детей.
+			case "color":
+				style.CurrentColor = ParseColor(value, style.CurrentColor, style.CurrentColor)
+					?? style.CurrentColor;
+
 				break;
 
 			case "stroke-width":
@@ -979,7 +1018,7 @@ public static class SvgImporter
 	/// Цвет SVG. null означает «не рисовать»: именно так читается none,
 	/// и именно этим «нет заливки» отличается от «заливка чёрная».
 	/// </summary>
-	private static SKColor? ParseColor(string? value, SKColor? fallback)
+	private static SKColor? ParseColor(string? value, SKColor? fallback, SKColor currentColor)
 	{
 		value = value?.Trim();
 
@@ -993,7 +1032,12 @@ public static class SvgImporter
 		}
 
 		if (string.Equals(value, "currentColor", StringComparison.OrdinalIgnoreCase))
-			return fallback;
+			return currentColor;
+
+		// Переменная CSS: значения её здесь нет, зато в записи обычно стоит
+		// запасной цвет вторым доводом — var(--icon-bg, #fff). Он и берётся.
+		if (value.StartsWith("var(", StringComparison.OrdinalIgnoreCase))
+			return ParseColor(FallbackOfVar(value), fallback, currentColor);
 
 		// Градиенты и ссылки на определения: цвета у нас для них нет,
 		// и серая заливка честнее невидимой фигуры.
@@ -1029,6 +1073,25 @@ public static class SvgImporter
 			return parsed;
 
 		return ParseNamedColor(value) ?? fallback;
+	}
+
+	/// <summary>
+	/// Запасное значение переменной CSS: то, что стоит после запятой
+	/// в var(--имя, запасное). Нет запасного — пустая строка, и цвет
+	/// остаётся унаследованным.
+	/// </summary>
+	private static string FallbackOfVar(string value)
+	{
+		int open = value.IndexOf('(');
+		int close = value.LastIndexOf(')');
+
+		if (open < 0 || close <= open)
+			return string.Empty;
+
+		string inside = value[(open + 1)..close];
+		int comma = inside.IndexOf(',');
+
+		return comma < 0 ? string.Empty : inside[(comma + 1)..].Trim();
 	}
 
 	/// <summary>
