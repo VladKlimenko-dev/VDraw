@@ -48,8 +48,11 @@ public static class AvTheme
 	/// <summary>Высота поля ввода.</summary>
 	public const double InputHeight = 26;
 
-	/// <summary>Высота заголовка раздела.</summary>
-	public const double HeaderHeight = 28;
+	/// <summary>
+	/// Высота заголовка раздела. Под более крупный шрифт заголовка:
+	/// в прежние 28 точек он вставал впритык к краям.
+	/// </summary>
+	public const double HeaderHeight = 32;
 
 	/// <summary>Зазор между соседними контролами.</summary>
 	public const double Gap = 6;
@@ -62,6 +65,9 @@ public static class AvTheme
 
 	/// <summary>Размер шрифта подписей и полей.</summary>
 	public const double FontSize = 12;
+
+	/// <summary>Размер шрифта заголовка раздела.</summary>
+	public const double HeaderFontSize = 14;
 
 	public static IBrush PanelBack => Brush(SkUiTheme.Current.PanelBack);
 	public static IBrush PanelBack2 => Brush(SkUiTheme.Current.PanelBack2);

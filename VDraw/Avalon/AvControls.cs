@@ -499,6 +499,8 @@ public sealed class AvCollapseSection : Border
 			Content.IsVisible = value;
 			_chevron.Text = value ? "▾" : "▸";
 
+			ApplyHeaderCorners();
+
 			ExpandedChanged?.Invoke(value);
 		}
 	}
@@ -525,7 +527,10 @@ public sealed class AvCollapseSection : Border
 
 		_title = new TextBlock
 		{
-			FontSize = AvTheme.FontSize,
+			// Крупнее подписей свойств: заголовок раздела — это
+			// оглавление панели, по нему ищут нужный раздел взглядом,
+			// и вровень с содержимым он теряется.
+			FontSize = AvTheme.HeaderFontSize,
 			FontWeight = FontWeight.SemiBold,
 			Foreground = AvTheme.Text,
 			VerticalAlignment = VerticalAlignment.Center,
@@ -545,10 +550,11 @@ public sealed class AvCollapseSection : Border
 		{
 			Height = AvTheme.HeaderHeight,
 			Background = AvTheme.Surface2,
-			CornerRadius = new CornerRadius(AvTheme.Radius - 1, AvTheme.Radius - 1, 0, 0),
 			Cursor = new Cursor(StandardCursorType.Hand),
 			Child = headerRow
 		};
+
+		ApplyHeaderCorners();
 
 		_header.PointerPressed += (_, e) =>
 		{
@@ -566,6 +572,23 @@ public sealed class AvCollapseSection : Border
 		stack.Add(Content);
 
 		Child = stack;
+	}
+
+	/// <summary>
+	/// Скругление углов заголовка.
+	///
+	/// У развёрнутого раздела скруглены только верхние: снизу к заголовку
+	/// примыкает содержимое. У свёрнутого заголовок — весь раздел, и его
+	/// прямые нижние углы закрашивали скруглённые углы рамки: обвод
+	/// выглядел незаконченным.
+	/// </summary>
+	private void ApplyHeaderCorners()
+	{
+		double radius = AvTheme.Radius - 1;
+
+		_header.CornerRadius = _expanded
+			? new CornerRadius(radius, radius, 0, 0)
+			: new CornerRadius(radius);
 	}
 
 	/// <summary>
