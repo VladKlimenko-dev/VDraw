@@ -64,7 +64,72 @@ public sealed partial class SettingsForm : Form
 		applyButton.Click += (_, _) => ApplyToSettings();
 		resetButton.Click += OnRestoreDefaults;
 
+		// После Localization.Register: вкладка переводит свои подписи сама
+		// и меняет их на ходу (сочетание, «Press keys...», «none»). Попади
+		// она под общий обход, тот запомнил бы как «исходный английский»
+		// то, что окажется в подписи в момент обхода.
+		InitShortcutsTab();
+
 		LoadFromSettings();
+	}
+
+	/// <summary>Вкладка сочетаний клавиш.</summary>
+	private ShortcutsPage? _shortcutsPage;
+
+	/// <summary>
+	/// Добавляет вкладку «Shortcuts».
+	///
+	/// В коде, а не в дизайнере, по той же причине, что и поле точности
+	/// размеров: файл дизайнера правится пользователем, и добавленное
+	/// туда пропало бы при первой же перегенерации. Вдобавок список
+	/// строится по реестру действий, а не руками — дизайнеру тут
+	/// и рисовать нечего.
+	/// </summary>
+	private void InitShortcutsTab()
+	{
+		var host = Controls.OfType<TabControl>().FirstOrDefault()
+			?? FindTabControl(this);
+
+		if (host == null)
+			return;
+
+		_shortcutsPage = new ShortcutsPage();
+
+		var page = new TabPage("Shortcuts");
+
+		page.Controls.Add(_shortcutsPage);
+		host.TabPages.Add(page);
+	}
+
+	private static TabControl? FindTabControl(Control parent)
+	{
+		foreach (Control control in parent.Controls)
+		{
+			if (control is TabControl tabs)
+				return tabs;
+
+			var found = FindTabControl(control);
+
+			if (found != null)
+				return found;
+		}
+
+		return null;
+	}
+
+	/// <summary>
+	/// Пока идёт захват сочетания, клавиши принадлежат вкладке.
+	///
+	/// Именно ProcessCmdKey: только здесь видны сочетания целиком,
+	/// включая Tab и стрелки, которые контролы считают своими и
+	/// до обычных обработчиков не доносят.
+	/// </summary>
+	protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+	{
+		if (_shortcutsPage != null && _shortcutsPage.HandleCaptureKey(keyData))
+			return true;
+
+		return base.ProcessCmdKey(ref msg, keyData);
 	}
 
 	/// <summary>Знаков после запятой у нового размера.</summary>
@@ -175,7 +240,14 @@ public sealed partial class SettingsForm : Form
 
 	private void ApplyToSettings()
 	{
-		SkUiTheme.SetTheme(SkThemeKind.Light);
+		// Перерисовка формы без смены темы.
+		//
+		// Прежде здесь стояла принудительная установка светлой темы: она
+		// заодно перекрашивала образцы цвета. С появлением кнопки смены
+		// темы это стало отменять выбор пользователя при каждом нажатии
+		// «Применить». SetTheme с текущим значением поднимает то же
+		// событие и перерисовывает всё так же, ничего не меняя.
+		SkUiTheme.SetTheme(SkUiTheme.CurrentKind);
 
 		Settings.show_rulers = chkShowRulers.Checked;
 		Settings.show_guidelines = chkShowGuidelines.Checked;
@@ -409,6 +481,10 @@ public static class SettingsStore
 		Num("shape_line_thickness_mm", () => Settings.shape_default_line_thickness_mm, v => Settings.shape_default_line_thickness_mm = v);
 		Num("shape_pattern_length_mm", () => Settings.shape_default_pattern_length_mm, v => Settings.shape_default_pattern_length_mm = v);
 		Int("measurement_digits", () => Settings.measurement_default_digits, v => Settings.measurement_default_digits = v);
+
+		// Сочетания клавиш одной строкой: в ней только отличия от
+		// исходных значений, см. Shortcuts.Serialize.
+		list.Add(new Entry("shortcuts", Shortcuts.Serialize, Shortcuts.Deserialize));
 
 		Num("handle_size", () => Settings.handle_size, v => Settings.handle_size = v);
 		Num("handle_line_thickness", () => Settings.handle_line_thickness, v => Settings.handle_line_thickness = v);

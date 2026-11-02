@@ -477,43 +477,6 @@ public partial class MainForm : Form
 		return base.ProcessCmdKey(ref msg, keyData);
 	}
 
-	/// <summary>
-	/// Разбор сочетания. true — клавиша обработана и дальше не идёт.
-	///
-	/// Порядок групп важен только в одном месте: сочетания правки проверяются
-	/// раньше инструментов, иначе Ctrl+C ушло бы в инструмент «окружность».
-	/// </summary>
-	private bool TryHandleShortcut(Keys keyData)
-	{
-		if (_mainView == null || cur_doc == null)
-			return false;
-
-		// Клавиши холста отдаются холсту целиком.
-		if (IsCanvasFocused() && BelongsToCanvas(keyData))
-			return false;
-
-		bool typing = IsTextEntryFocused();
-
-		// Пока идёт набор текста, поле забирает клавиатуру себе. Пропускаются
-		// только команды документа: Ctrl+S во время правки подписи должен
-		// сохранять документ, а не вставлять символ.
-		if (typing && !IsAllowedWhileTyping(keyData))
-			return false;
-
-		if (TryHandleFileShortcut(keyData))
-			return true;
-
-		if (TryHandleEditShortcut(keyData))
-			return true;
-
-		if (typing)
-			return false;
-
-		return TryHandleToolShortcut(keyData)
-			|| TryHandleArrangeShortcut(keyData)
-			|| TryHandleNodeShortcut(keyData)
-			|| TryHandleViewShortcut(keyData);
-	}
 
 	/// <summary>
 	/// Клавиши, у которых в MainView.OnKeyDown своя обработка, зависящая от
@@ -558,25 +521,6 @@ public partial class MainForm : Form
 		return _mainView != null && _mainView.Focused;
 	}
 
-	/// <summary>
-	/// Что разрешено во время набора текста.
-	///
-	/// Только файловые команды и справка. Ctrl+C, Ctrl+V, Ctrl+X, Ctrl+Z,
-	/// Ctrl+Y и Ctrl+A принадлежат полю ввода: перехватив их, мы отняли бы
-	/// у пользователя правку текста.
-	/// </summary>
-	private static bool IsAllowedWhileTyping(Keys keyData) => keyData switch
-	{
-		Keys.Control | Keys.N => true,
-		Keys.Control | Keys.O => true,
-		Keys.Control | Keys.S => true,
-		Keys.Control | Keys.Shift | Keys.S => true,
-		Keys.Control | Keys.I => true,
-		Keys.Control | Keys.E => true,
-		Keys.Control | Keys.P => true,
-		Keys.F1 => true,
-		_ => false
-	};
 
 
 	/// <summary>
@@ -610,151 +554,11 @@ public partial class MainForm : Form
 		return focused is TextBoxBase || focused is NumericUpDown;
 	}
 
-	private bool TryHandleFileShortcut(Keys keyData)
-	{
-		switch (keyData)
-		{
-			case Keys.Control | Keys.N: d_new_but_Click(this, EventArgs.Empty); return true;
-			case Keys.Control | Keys.O: d_open_but_Click(this, EventArgs.Empty); return true;
-			case Keys.Control | Keys.S: d_save_but_Click(this, EventArgs.Empty); return true;
-			case Keys.Control | Keys.Shift | Keys.S: d_save_as_but_Click(this, EventArgs.Empty); return true;
-			case Keys.Control | Keys.I: d_import_but_Click(this, EventArgs.Empty); return true;
-			case Keys.Control | Keys.E: d_export_but_Click(this, EventArgs.Empty); return true;
-			case Keys.Control | Keys.P: d_print_but_Click(this, EventArgs.Empty); return true;
-			case Keys.F1: help_but_Click(this, EventArgs.Empty); return true;
-			default: return false;
-		}
-	}
 
-	private bool TryHandleEditShortcut(Keys keyData)
-	{
-		switch (keyData)
-		{
-			case Keys.Control | Keys.Z: undo_but_Click(this, EventArgs.Empty); return true;
-			case Keys.Control | Keys.Y: redo_but_Click(this, EventArgs.Empty); return true;
-			case Keys.Control | Keys.Shift | Keys.Z: redo_but_Click(this, EventArgs.Empty); return true;
-			case Keys.Control | Keys.Shift | Keys.C: CopyShapeFormat(); return true;
-			case Keys.Control | Keys.Shift | Keys.V: PasteShapeFormat(); return true;
-			case Keys.Control | Keys.A: _mainView.SelectAllShapes(); return true;
-			default: return false;
-		}
-	}
 
-	/// <summary>
-	/// Выбор инструмента. Одиночные буквы — только здесь, и только когда
-	/// фокус не в поле ввода: проверка стоит в TryHandleShortcut.
-	/// </summary>
-	private bool TryHandleToolShortcut(Keys keyData)
-	{
-		switch (keyData)
-		{
-			case Keys.Escape: s_cursor_but_Click(this, EventArgs.Empty); return true;
-			case Keys.L: s_new_line_but_Click(this, EventArgs.Empty); return true;
-			case Keys.B: s_new_curve_but_Click(this, EventArgs.Empty); return true;
-			case Keys.T: s_new_text_but_Click(this, EventArgs.Empty); return true;
-			case Keys.M: measure_distance_but_Click(this, EventArgs.Empty); return true;
-			case Keys.N: s_curve_edit_but_Click(this, EventArgs.Empty); return true;
-			case Keys.P: s_new_poly_but_Click(this, EventArgs.Empty); return true;
-			case Keys.Shift | Keys.P: s_new_free_poly_but_Click(this, EventArgs.Empty); return true;
-			case Keys.K: s_scissors_line_but_Click(this, EventArgs.Empty); return true;
-			case Keys.Shift | Keys.K: s_scissors_curve_but_Click(this, EventArgs.Empty); return true;
 
-			// У прямоугольника, окружности и эллипса кнопка составная: клавиша
-			// включает тот вариант, что выбран в её списке последним. Так же
-			// ведёт себя щелчок по самой кнопке.
-			case Keys.R: _mainView.SetTool(_selectedRectangleTool); return true;
-			case Keys.C: _mainView.SetTool(_selectedCircleTool); return true;
-			case Keys.E: _mainView.SetTool(_selectedEllipseTool); return true;
 
-			case Keys.Control | Keys.Shift | Keys.I: s_new_image_but_Click(this, EventArgs.Empty); return true;
-			case Keys.Control | Keys.M: s_image_mode_but_Click(this, EventArgs.Empty); return true;
-			default: return false;
-		}
-	}
 
-	private bool TryHandleArrangeShortcut(Keys keyData)
-	{
-		switch (keyData)
-		{
-			case Keys.Delete: DeleteSelectedShapes(); return true;
-
-			case Keys.Control | Keys.G: s_group_but_Click(this, EventArgs.Empty); return true;
-			case Keys.Control | Keys.Shift | Keys.G: s_ungroup_but_Click(this, EventArgs.Empty); return true;
-
-			case Keys.Control | Keys.Shift | Keys.Up: s_bring_to_front_but_Click(this, EventArgs.Empty); return true;
-			case Keys.Control | Keys.Shift | Keys.Down: s_send_back_but_Click(this, EventArgs.Empty); return true;
-
-			case Keys.Shift | Keys.H: flip_horizontal_but_Click(this, EventArgs.Empty); return true;
-			case Keys.Shift | Keys.V: flip_vertical_but_Click(this, EventArgs.Empty); return true;
-
-			case Keys.Control | Keys.Right: rotate_CW_90_but_Click(this, EventArgs.Empty); return true;
-			case Keys.Control | Keys.Left: rotate_CCW_90_but_Click(this, EventArgs.Empty); return true;
-
-			case Keys.Control | Keys.Alt | Keys.U: s_union_but_Click(this, EventArgs.Empty); return true;
-			case Keys.Control | Keys.Alt | Keys.S: s_substract_but_Click(this, EventArgs.Empty); return true;
-			case Keys.Control | Keys.Alt | Keys.I: s_intersect_but_Click(this, EventArgs.Empty); return true;
-			case Keys.Control | Keys.Alt | Keys.X: s_exclude_xor_but_Click(this, EventArgs.Empty); return true;
-			case Keys.Control | Keys.Alt | Keys.C: s_combine_but_Click(this, EventArgs.Empty); return true;
-			case Keys.Control | Keys.Q: s_convert_to_curve_but_Click(this, EventArgs.Empty); return true;
-
-			case Keys.Left: NudgeSelection(-NudgeStep, 0f); return true;
-			case Keys.Right: NudgeSelection(NudgeStep, 0f); return true;
-			case Keys.Up: NudgeSelection(0f, -NudgeStep); return true;
-			case Keys.Down: NudgeSelection(0f, NudgeStep); return true;
-
-			case Keys.Shift | Keys.Left: NudgeSelection(-NudgeStepLarge, 0f); return true;
-			case Keys.Shift | Keys.Right: NudgeSelection(NudgeStepLarge, 0f); return true;
-			case Keys.Shift | Keys.Up: NudgeSelection(0f, -NudgeStepLarge); return true;
-			case Keys.Shift | Keys.Down: NudgeSelection(0f, NudgeStepLarge); return true;
-
-			default: return false;
-		}
-	}
-
-	/// <summary>
-	/// Правка узлов. Клавиши действуют только в режиме узлов: цифры 1, 2 и 3
-	/// в обычном режиме должны остаться свободными.
-	/// </summary>
-	private bool TryHandleNodeShortcut(Keys keyData)
-	{
-		if (Mode != EditorMode.Curve)
-			return false;
-
-		switch (keyData)
-		{
-			case Keys.D1:
-			case Keys.NumPad1: nodes_straight_but_Click(this, EventArgs.Empty); return true;
-
-			case Keys.D2:
-			case Keys.NumPad2: node_tangent_but_Click(this, EventArgs.Empty); return true;
-
-			case Keys.D3:
-			case Keys.NumPad3: node_sharp_but_Click(this, EventArgs.Empty); return true;
-
-			case Keys.Control | Keys.J: nodes_merge_but_Click(this, EventArgs.Empty); return true;
-			case Keys.Control | Keys.Shift | Keys.J: nodes_split_but_Click(this, EventArgs.Empty); return true;
-
-			default: return false;
-		}
-	}
-
-	private bool TryHandleViewShortcut(Keys keyData)
-	{
-		switch (keyData)
-		{
-			case Keys.Control | Keys.D0: v_scale_all_but_Click(this, EventArgs.Empty); return true;
-			case Keys.Control | Keys.D1: v_scale_page_but_Click(this, EventArgs.Empty); return true;
-			case Keys.Control | Keys.Shift | Keys.D0: v_scale_selected_but_Click(this, EventArgs.Empty); return true;
-
-			case Keys.Control | Keys.R: v_show_rulers_but_Click(this, EventArgs.Empty); return true;
-			case Keys.Control | Keys.Oemcomma: s_show_guidelines_but_Click(this, EventArgs.Empty); return true;
-			case Keys.Control | Keys.D3: page_grid_but_Click(this, EventArgs.Empty); return true;
-			case Keys.Control | Keys.Shift | Keys.N: v_snap_but_Click(this, EventArgs.Empty); return true;
-			case Keys.Control | Keys.Shift | Keys.D: v_dynamic_guidelines_but_Click(this, EventArgs.Empty); return true;
-
-			default: return false;
-		}
-	}
 
 	/// <summary>Шаг сдвига стрелками, в единицах страницы.</summary>
 	private const float NudgeStep = 0.5f;
