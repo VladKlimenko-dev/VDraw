@@ -5454,7 +5454,10 @@ public sealed class AvPropertyPanel : UserControl
 			};
 
 
-			p.Content.Add(CreateActionRow(applyBut, resetBut));
+			// Каждая кнопка своей строкой: рядом они не помещаются
+			// по ширине панели, и вторая уезжала за правый край.
+			p.Content.Add(CreateActionRow(applyBut));
+			p.Content.Add(CreateActionRow(resetBut));
 			p.Arrange();
 		}
 

@@ -1365,21 +1365,18 @@ public partial class MainForm : Form
 			return;
 		_mainView.IsCurveEditMode = Mode == EditorMode.Curve;
 
-		switch (Mode)
-		{
-			case EditorMode.Curve:
-				break;
-
-			case EditorMode.Image:
-				break;
-
-			case EditorMode.Text:
-				break;
-
-			case EditorMode.Shape:
-			default:
-				break;
-		}
+		// Отметка текущего режима на боковой полосе.
+		//
+		// Режим меняется не только кнопками: в него входят двойным
+		// щелчком, выходят Escape и щелчком мимо фигуры. Поэтому отметка
+		// ставится здесь, в одном месте, через которое проходит любая
+		// смена, а не в обработчиках самих кнопок.
+		//
+		// Режим текста отмечается курсором: отдельной кнопки у него нет,
+		// а входят в него, выделив надпись, то есть обычным выбором.
+		SetButtonChecked(s_cursor_but, Mode is EditorMode.Shape or EditorMode.Text);
+		SetButtonChecked(s_curve_edit_but, Mode == EditorMode.Curve);
+		SetButtonChecked(image_mode_but, Mode == EditorMode.Image);
 	}
 
 	/// <summary>

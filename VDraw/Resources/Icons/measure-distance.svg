@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="139" height="132">
-	<path fill="none" stroke="black" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" transform="translate(-3954.29 -6824.62)" d="M3977.6138 6933.3667L3977.2109 6847.543" fill-rule="evenodd"/>
-	<path fill="none" stroke="black" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" transform="translate(-3954.29 -6824.62)" d="M4069.4502 6933.3667L4069.0474 6847.543" fill-rule="evenodd"/>
-	<path fill="none" stroke="black" stroke-width="3.999999" stroke-linecap="round" stroke-linejoin="round" transform="translate(-3954.29 -6824.62)" d="M4056.0293 6866.1226L3990.2056 6866.4316" fill-rule="evenodd"/>
+	<path fill="none" stroke="black" stroke-width="6.043" stroke-linecap="round" stroke-linejoin="round" transform="translate(-3954.29 -6824.62)" d="M3977.6138 6933.3667L3977.2109 6847.543" fill-rule="evenodd"/>
+	<path fill="none" stroke="black" stroke-width="6.043" stroke-linecap="round" stroke-linejoin="round" transform="translate(-3954.29 -6824.62)" d="M4069.4502 6933.3667L4069.0474 6847.543" fill-rule="evenodd"/>
+	<path fill="none" stroke="black" stroke-width="8.058" stroke-linecap="round" stroke-linejoin="round" transform="translate(-3954.29 -6824.62)" d="M4056.0293 6866.1226L3990.2056 6866.4316" fill-rule="evenodd"/>
 	<path transform="matrix(0.999989 -0.00469366 0.00469366 0.999989 111.741 41.4551)" d="M0 0L-19.999996 7.9999986L-19.999996 -7.9999986L0 0Z"/>
 	<path transform="matrix(-0.999989 0.00469364 -0.00469364 -0.999989 25.917 41.8579)" d="M0 0L-19.999996 7.9999986L-19.999996 -7.9999986L0 0Z"/>
 </svg>

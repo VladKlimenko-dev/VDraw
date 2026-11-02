@@ -210,6 +210,19 @@ public static class Localization
 	}
 
 	/// <summary>
+	/// Забывает исходный текст элемента: при смене языка он останется
+	/// таким, какой есть.
+	///
+	/// Нужно тем, у кого подпись убрали уже после обхода — кнопкам,
+	/// которым раздали значки вместо текста.
+	/// </summary>
+	public static void Forget(object item)
+	{
+		if (item != null)
+			_originals.Remove(item);
+	}
+
+	/// <summary>
 	/// Исключает элемент и всё его содержимое из перевода. Вызывается
 	/// до Register.
 	/// </summary>
@@ -313,12 +326,24 @@ public static class Localization
 		if (needed <= control.Width)
 			return;
 
-		// Внутри раскладочных панелей ширину задаёт панель: присваивание
-		// в Width там либо ничего не даст, либо собьёт разметку.
+		// В потоковой панели ширину можно не считать вовсе: достаточно
+		// разрешить подписи расти самой, а панель переложит соседей.
+		// Для этого потоковая панель и нужна, и русский текст, который
+		// иначе переносился бы на вторую строку посреди слова, встаёт
+		// в одну.
+		if (control.Parent is FlowLayoutPanel)
+		{
+			control.AutoSize = true;
+
+			return;
+		}
+
+		// Внутри остальных раскладочных панелей ширину задаёт панель:
+		// присваивание в Width там либо ничего не даст, либо собьёт
+		// разметку.
 		bool ownWidth =
 			control.Dock == DockStyle.None &&
-			control.Parent is not TableLayoutPanel &&
-			control.Parent is not FlowLayoutPanel;
+			control.Parent is not TableLayoutPanel;
 
 		if (ownWidth)
 			control.Width += Math.Min(needed - control.Width, FreeSpaceRight(control));

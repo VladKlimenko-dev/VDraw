@@ -1817,9 +1817,284 @@ public sealed class AvPictureButton : Button
 /// Заодно свойства остаются своими — Value отдаётся как float, и
 /// перенесённому коду не нужны приведения типа в каждом выражении.
 /// </summary>
+/// <summary>
+/// Ползунок — дорожка с вертикальной ручкой.
+///
+/// Рисуется сам, а не берётся у темы Fluent. У штатного Slider ручка —
+/// круг, рассчитанный на строку в тридцать с лишним точек; в строке
+/// свойств высотой 26 он не помещался и обрезался снизу, превращаясь
+/// в полукруг. Перебить это можно было бы шаблоном поверх темы, но
+/// шаблон пришлось бы писать всё равно, а своя отрисовка вдобавок
+/// не зависит от того, что тема Fluent поменяет в следующей версии,
+/// и берёт цвета прямо из палитры приложения — как и остальные
+/// контролы панели.
+/// </summary>
+public sealed class AvSliderTrack : Control
+{
+	/// <summary>Толщина дорожки.</summary>
+	private const double TrackThickness = 4;
+
+	/// <summary>Ширина и высота ручки.</summary>
+	private const double HandleWidth = 8;
+
+	private const double HandleHeight = 18;
+
+	private double _value;
+	private bool _hover;
+	private bool _dragging;
+
+	public double Minimum { get; set; }
+
+	public double Maximum { get; set; } = 100;
+
+	/// <summary>Шаг стрелками на клавиатуре.</summary>
+	public double SmallChange { get; set; } = 1;
+
+	/// <summary>Шаг округления. Ноль — округления нет.</summary>
+	public double Step { get; set; }
+
+	public bool SnapToStep { get; set; }
+
+	public double Value
+	{
+		get => _value;
+		set => Assign(value, raise: false);
+	}
+
+	public Action<double>? ValueChanged { get; set; }
+
+	public AvSliderTrack()
+	{
+		Height = AvTheme.InputHeight;
+		MinHeight = HandleHeight;
+		MinWidth = 40;
+		Focusable = true;
+		Cursor = new Cursor(StandardCursorType.Hand);
+	}
+
+	#region Значение
+
+	/// <summary>
+	/// Записывает значение. raise = false нужен панели: она заполняет
+	/// контролы из модели, и обратная запись оттуда замкнула бы круг.
+	///
+	/// Имя своё, а не SetValue: одноимённый метод есть у AvaloniaObject,
+	/// и две похожие перегрузки рядом читались бы как недосмотр.
+	/// </summary>
+	public void Assign(double value, bool raise)
+	{
+		double clamped = Math.Clamp(Round(value), Minimum, Maximum);
+
+		if (Math.Abs(clamped - _value) < 1e-9)
+			return;
+
+		_value = clamped;
+
+		InvalidateVisual();
+
+		if (raise)
+			ValueChanged?.Invoke(_value);
+	}
+
+	private double Round(double value)
+	{
+		if (!SnapToStep || Step <= 0)
+			return value;
+
+		return Minimum + Math.Round((value - Minimum) / Step) * Step;
+	}
+
+	/// <summary>Доля от нуля до единицы, на которой стоит ручка.</summary>
+	private double Fraction
+	{
+		get
+		{
+			double span = Maximum - Minimum;
+
+			return span <= 0 ? 0 : Math.Clamp((_value - Minimum) / span, 0, 1);
+		}
+	}
+
+	#endregion
+
+	#region Отрисовка
+
+	public override void Render(DrawingContext context)
+	{
+		double width = Bounds.Width;
+		double height = Bounds.Height;
+
+		if (width <= 0 || height <= 0)
+			return;
+
+		// Дорожка не доходит до краёв на пол-ручки: иначе ручка в крайнем
+		// положении наполовину вылезала бы за контрол.
+		double left = HandleWidth / 2;
+		double right = width - HandleWidth / 2;
+
+		if (right <= left)
+			return;
+
+		double middle = height / 2;
+		double radius = TrackThickness / 2;
+
+		var track = new Rect(left, middle - radius, right - left, TrackThickness);
+
+		context.DrawRectangle(
+			IsEnabled ? AvTheme.Surface2 : AvTheme.Surface,
+			null,
+			new RoundedRect(track, radius, radius));
+
+		double handleX = left + (right - left) * Fraction;
+
+		// Пройденная часть дорожки — цветом выделения: по ней видно,
+		// куда ползунок уже сдвинут, без чтения числа справа.
+		if (IsEnabled && handleX > left)
+		{
+			var done = new Rect(left, middle - radius, handleX - left, TrackThickness);
+
+			context.DrawRectangle(AvTheme.Accent, null, new RoundedRect(done, radius, radius));
+		}
+
+		var handle = new Rect(
+			handleX - HandleWidth / 2,
+			middle - HandleHeight / 2,
+			HandleWidth,
+			Math.Min(HandleHeight, height));
+
+		var fill = !IsEnabled
+			? AvTheme.Surface2
+			: _dragging || _hover ? AvTheme.Accent : AvTheme.Surface;
+
+		var border = IsEnabled ? AvTheme.Accent : AvTheme.BorderLine;
+
+		context.DrawRectangle(
+			fill,
+			new Pen(border, 1),
+			new RoundedRect(handle.Deflate(0.5), 3, 3));
+	}
+
+	#endregion
+
+	#region Ввод
+
+	private void MoveTo(Point position)
+	{
+		double left = HandleWidth / 2;
+		double right = Bounds.Width - HandleWidth / 2;
+
+		if (right <= left)
+			return;
+
+		double fraction = Math.Clamp((position.X - left) / (right - left), 0, 1);
+
+		Assign(Minimum + (Maximum - Minimum) * fraction, raise: true);
+	}
+
+	protected override void OnPointerPressed(PointerPressedEventArgs e)
+	{
+		base.OnPointerPressed(e);
+
+		if (!IsEnabled)
+			return;
+
+		Focus();
+
+		_dragging = true;
+
+		// Указатель захватывается, иначе протяжка обрывалась бы, едва
+		// курсор ушёл за пределы узкой полоски ползунка.
+		e.Pointer.Capture(this);
+
+		MoveTo(e.GetPosition(this));
+
+		e.Handled = true;
+	}
+
+	protected override void OnPointerMoved(PointerEventArgs e)
+	{
+		base.OnPointerMoved(e);
+
+		if (!_dragging)
+			return;
+
+		MoveTo(e.GetPosition(this));
+
+		e.Handled = true;
+	}
+
+	protected override void OnPointerReleased(PointerReleasedEventArgs e)
+	{
+		base.OnPointerReleased(e);
+
+		if (!_dragging)
+			return;
+
+		_dragging = false;
+
+		e.Pointer.Capture(null);
+
+		InvalidateVisual();
+
+		e.Handled = true;
+	}
+
+	protected override void OnPointerEntered(PointerEventArgs e)
+	{
+		base.OnPointerEntered(e);
+
+		_hover = true;
+		InvalidateVisual();
+	}
+
+	protected override void OnPointerExited(PointerEventArgs e)
+	{
+		base.OnPointerExited(e);
+
+		_hover = false;
+		InvalidateVisual();
+	}
+
+	protected override void OnKeyDown(KeyEventArgs e)
+	{
+		base.OnKeyDown(e);
+
+		if (!IsEnabled)
+			return;
+
+		double step = SmallChange > 0 ? SmallChange : 1;
+
+		switch (e.Key)
+		{
+			case Key.Left or Key.Down:
+				Assign(_value - step, raise: true);
+				break;
+
+			case Key.Right or Key.Up:
+				Assign(_value + step, raise: true);
+				break;
+
+			case Key.Home:
+				Assign(Minimum, raise: true);
+				break;
+
+			case Key.End:
+				Assign(Maximum, raise: true);
+				break;
+
+			default:
+				return;
+		}
+
+		e.Handled = true;
+	}
+
+	#endregion
+}
+
 public sealed class AvSlideBar : Grid
 {
-	private readonly Slider _slider;
+	private readonly AvSliderTrack _slider;
 	private readonly TextBlock _label;
 
 	private bool _suppress;
@@ -1844,14 +2119,14 @@ public sealed class AvSlideBar : Grid
 
 	public bool SnapToStep
 	{
-		get => _slider.IsSnapToTickEnabled;
-		set => _slider.IsSnapToTickEnabled = value;
+		get => _slider.SnapToStep;
+		set => _slider.SnapToStep = value;
 	}
 
 	public double Step
 	{
-		get => _slider.TickFrequency;
-		set => _slider.TickFrequency = value;
+		get => _slider.Step;
+		set => _slider.Step = value;
 	}
 
 	public int Decimals { get; set; } = 2;
@@ -1882,13 +2157,11 @@ public sealed class AvSlideBar : Grid
 		ColumnDefinitions = new ColumnDefinitions("*,Auto");
 		Height = AvTheme.InputHeight;
 
-		_slider = new Slider
+		_slider = new AvSliderTrack
 		{
 			Minimum = 0,
 			Maximum = 100,
 			SmallChange = 1,
-			MinHeight = 0,
-			Orientation = Orientation.Horizontal,
 			VerticalAlignment = VerticalAlignment.Center
 		};
 
@@ -1909,22 +2182,17 @@ public sealed class AvSlideBar : Grid
 		Children.Add(_slider);
 		Children.Add(_label);
 
-		_slider.PropertyChanged += OnSliderPropertyChanged;
+		_slider.ValueChanged += _ =>
+		{
+			UpdateLabel();
+
+			if (_suppress)
+				return;
+
+			ValueChanged?.Invoke(Value);
+		};
 
 		UpdateLabel();
-	}
-
-	private void OnSliderPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
-	{
-		if (e.Property != RangeBase.ValueProperty)
-			return;
-
-		UpdateLabel();
-
-		if (_suppress)
-			return;
-
-		ValueChanged?.Invoke(Value);
 	}
 
 	/// <summary>
@@ -1937,7 +2205,12 @@ public sealed class AvSlideBar : Grid
 
 		try
 		{
-			_slider.Value = IntegerMode ? MathF.Round(value) : value;
+			// Значение кладётся без события: своё ValueChanged ползунок
+			// поднимает только на действия пользователя, а подпись
+			// обновляется здесь же.
+			_slider.Assign(IntegerMode ? MathF.Round(value) : value, raise: false);
+
+			UpdateLabel();
 		}
 		finally
 		{
