@@ -1212,6 +1212,32 @@ public static class TextAreaLayout
 		public float ProbeStep = 0.5f;
 	}
 
+	/// <summary>
+	/// Кусок исходного текста на своём месте в собранной строке.
+	///
+	/// Раскладка не переносит текст как есть: лишние пробелы между
+	/// словами сжимаются в один, перевод строки исчезает, длинное слово
+	/// рвётся. Поэтому «третий символ собранной строки» и «третий символ
+	/// исходного текста» — разные вещи, а каретке нужно и то и другое.
+	/// </summary>
+	public readonly struct TextRun
+	{
+		/// <summary>Начало куска в исходном тексте.</summary>
+		public readonly int Source;
+
+		/// <summary>Начало того же куска в собранной строке.</summary>
+		public readonly int Placed;
+
+		public readonly int Length;
+
+		public TextRun(int source, int placed, int length)
+		{
+			Source = source;
+			Placed = placed;
+			Length = length;
+		}
+	}
+
 	public readonly struct PlacedLine
 	{
 		public readonly string Text;
@@ -1219,12 +1245,16 @@ public static class TextAreaLayout
 		public readonly float Baseline;
 		public readonly float Width;
 
-		public PlacedLine(string text, float x, float baseline, float width)
+		/// <summary>Привязка собранной строки к исходному тексту.</summary>
+		public readonly IReadOnlyList<TextRun> Runs;
+
+		public PlacedLine(string text, float x, float baseline, float width, IReadOnlyList<TextRun>? runs = null)
 		{
 			Text = text;
 			X = x;
 			Baseline = baseline;
 			Width = width;
+			Runs = runs ?? Array.Empty<TextRun>();
 		}
 	}
 
@@ -1257,6 +1287,11 @@ public static class TextAreaLayout
 	{
 		if (string.IsNullOrEmpty(text) || font == null || region == null || region.IsEmpty)
 			return new Result();
+
+		// Переводы строк приводятся к одному виду здесь, а не при разбиении
+		// на слова: ниже по тексту считаются позиции символов, и они обязаны
+		// относиться к той же строке, которую видит правка на листе.
+		text = text.Replace("\r\n", "\n").Replace('\r', '\n');
 
 		var bounds = region.Bounds;
 
@@ -1377,7 +1412,8 @@ public static class TextAreaLayout
 					if (span.Width < options.MinSpanWidth)
 						continue;
 
-					string line = FillSpan(words, ref wordIndex, font, span, options, out float lineWidth);
+					string line = FillSpan(
+						words, ref wordIndex, font, span, options, out float lineWidth, out var runs);
 
 					if (string.IsNullOrEmpty(line))
 						continue;
@@ -1389,7 +1425,7 @@ public static class TextAreaLayout
 						_ => span.Left
 					};
 
-					result.Lines.Add(new PlacedLine(line, x, baseline, lineWidth));
+					result.Lines.Add(new PlacedLine(line, x, baseline, lineWidth, runs));
 					result.UsedBottom = MathF.Max(result.UsedBottom, y + lineHeight);
 
 					// Явный перевод строки: остаток строки не заполняем.
@@ -1630,29 +1666,62 @@ public static class TextAreaLayout
 		public readonly string Text;
 		public readonly bool IsBreak;
 
-		public Token(string text, bool isBreak)
+		/// <summary>
+		/// Начало слова в исходной строке.
+		///
+		/// Нужно правке текста на листе: раскладка склеивает слова
+		/// пробелами по одному и переносит их куда придётся, и без
+		/// обратной привязки нельзя сказать, какому символу исходного
+		/// текста отвечает место на экране.
+		/// </summary>
+		public readonly int Start;
+
+		public Token(string text, bool isBreak, int start)
 		{
 			Text = text;
 			IsBreak = isBreak;
+			Start = start;
 		}
 	}
 
+	/// <summary>
+	/// Разбиение на слова со счётом позиций.
+	///
+	/// Разбор идёт посимвольно, а не через Split: Split теряет места,
+	/// откуда взято слово, а они нужны для привязки каретки. Переводы
+	/// строк к этому моменту уже приведены к «\n» — см. Layout.
+	/// </summary>
 	private static List<Token> BuildTokens(string text)
 	{
 		var tokens = new List<Token>();
 
-		string[] paragraphs = text
-			.Replace("\r\n", "\n")
-			.Replace("\r", "\n")
-			.Split('\n');
+		int i = 0;
 
-		for (int p = 0; p < paragraphs.Length; p++)
+		while (i < text.Length)
 		{
-			foreach (var word in paragraphs[p].Split(' ', StringSplitOptions.RemoveEmptyEntries))
-				tokens.Add(new Token(word, false));
+			char c = text[i];
 
-			if (p < paragraphs.Length - 1)
-				tokens.Add(new Token(string.Empty, true));
+			if (c == '\n')
+			{
+				tokens.Add(new Token(string.Empty, true, i));
+				i++;
+
+				continue;
+			}
+
+			if (c == ' ')
+			{
+				i++;
+
+				continue;
+			}
+
+			int start = i;
+
+			while (i < text.Length && text[i] != ' ' && text[i] != '\n')
+				i++;
+
+			tokens.Add(new Token(text[start..i], false, start));
 		}
 
 		return tokens;
@@ -1669,12 +1738,18 @@ public static class TextAreaLayout
 		SKFont font,
 		Span span,
 		Options options,
-		out float lineWidth)
+		out float lineWidth,
+		out List<TextRun> runs)
 	{
 		var sb = new System.Text.StringBuilder();
+		runs = new List<TextRun>();
 		lineWidth = 0f;
 
 		float spaceWidth = MeasureWithSpacing(" ", font, options.CharacterSpacing);
+
+		// Конец предыдущего слова в исходном тексте: там стоит пробел,
+		// который раскладка заменит одним своим.
+		int previousEnd = -1;
 
 		while (index < words.Count)
 		{
@@ -1690,12 +1765,18 @@ public static class TextAreaLayout
 			{
 				if (sb.Length > 0)
 				{
+					if (previousEnd >= 0)
+						runs.Add(new TextRun(previousEnd, sb.Length, 1));
+
 					sb.Append(' ');
 					lineWidth += spaceWidth;
 				}
 
+				runs.Add(new TextRun(token.Start, sb.Length, token.Text.Length));
+
 				sb.Append(token.Text);
 				lineWidth += wordWidth;
+				previousEnd = token.Start + token.Text.Length;
 				index++;
 				continue;
 			}
@@ -1717,11 +1798,16 @@ public static class TextAreaLayout
 				break;
 
 			string head = token.Text[..fits];
+
+			runs.Add(new TextRun(token.Start, sb.Length, fits));
+
 			sb.Append(head);
 			lineWidth += MeasureWithSpacing(head, font, options.CharacterSpacing);
 
 			// Хвост возвращается в очередь на место текущего элемента.
-			words[index] = new Token(token.Text[fits..], false);
+			// Его начало сдвигается вместе с ним, иначе привязка указывала
+			// бы на уже разложенную половину слова.
+			words[index] = new Token(token.Text[fits..], false, token.Start + fits);
 			break;
 		}
 
@@ -2133,25 +2219,9 @@ public sealed partial class TextShape
 		try
 		{
 			using var font = CreateLocalFont();
-			var metrics = font.Metrics;
 
-			var options = new TextAreaLayout.Options
-			{
-				LineHeight = FontSizeMm * 1.2f + LineSpacingMm,
-				Ascent = -metrics.Ascent,
-				Descent = metrics.Descent,
-				Columns = _columns,
-				ColumnGap = _distanceBetweenColumns,
-				HAlign = _areaHAlign,
-				VAlign = _areaVAlign,
-				CharacterSpacing = CharacterSpacingMm,
-				Padding = _padding,
-				Obstacles = obstacles,
-				MinSpanWidth = MathF.Max(FontSizeMm * 0.5f, 0.5f),
-				ProbeStep = Math.Clamp(FontSizeMm * 0.1f, 0.1f, 2f)
-			};
-
-			var layout = TextAreaLayout.Layout(Text, font, layoutRegion, options);
+			var layout = TextAreaLayout.Layout(
+				Text, font, layoutRegion, BuildAreaOptions(font, obstacles));
 
 			foreach (var line in layout.Lines)
 			{
@@ -2173,6 +2243,34 @@ public sealed partial class TextShape
 		{
 			DisposeRegions(layoutRegion, clipRegion, obstacles);
 		}
+	}
+
+	/// <summary>
+	/// Настройки раскладки текста по фигуре.
+	///
+	/// Одни и те же для отрисовки и для правки на листе: посчитай их
+	/// в двух местах — и каретка рано или поздно встанет не туда, где
+	/// буква, потому что одно из мест забудут поправить.
+	/// </summary>
+	private TextAreaLayout.Options BuildAreaOptions(SKFont font, List<SKPath>? obstacles)
+	{
+		var metrics = font.Metrics;
+
+		return new TextAreaLayout.Options
+		{
+			LineHeight = FontSizeMm * 1.2f + LineSpacingMm,
+			Ascent = -metrics.Ascent,
+			Descent = metrics.Descent,
+			Columns = _columns,
+			ColumnGap = _distanceBetweenColumns,
+			HAlign = _areaHAlign,
+			VAlign = _areaVAlign,
+			CharacterSpacing = CharacterSpacingMm,
+			Padding = _padding,
+			Obstacles = obstacles,
+			MinSpanWidth = MathF.Max(FontSizeMm * 0.5f, 0.5f),
+			ProbeStep = Math.Clamp(FontSizeMm * 0.1f, 0.1f, 2f)
+		};
 	}
 
 	/// <summary>Части обычного текста: глифы и оформление отдельно.</summary>

@@ -15,6 +15,9 @@ namespace VDraw.Editing;
 /// строки, выделение клавишами и мышью, буфер обмена, отмена набранного.
 /// Выход — Escape или щелчок мимо надписи.
 ///
+/// Правятся все три вида надписей: обычная, разложенная по фигуре
+/// с обтеканием препятствий и идущая по кривой.
+///
 /// Разбор ввода здесь, а правила про символы и строки — в
 /// TextEditSession, геометрия каретки — в TextEditGeometry.
 /// </summary>
@@ -181,22 +184,65 @@ public sealed partial class MainView
 
 	#region Мышь
 
-	/// <summary>Попадает ли точка в надпись, которую правят.</summary>
+	/// <summary>
+	/// Попадает ли точка в текст, который правят.
+	///
+	/// Меряется расстояние до ближайшего места каретки, а не попадание
+	/// в габаритную коробку. Коробка не годится: у текста по кривой она
+	/// накрывает всю фигуру, вокруг которой он идёт, и щелчок в середине
+	/// окружности считался бы щелчком по надписи. А у текста по фигуре
+	/// с обтеканием в коробку попадает и то место, откуда текст
+	/// вытеснен препятствием.
+	///
+	/// Порог берётся от высоты строки на экране — она же длина отрезка
+	/// каретки: так он сам подстраивается и под кегль, и под масштаб.
+	/// </summary>
 	private bool HitsEditedText(SKPoint world)
 	{
-		var shape = _textEdit?.Shape;
+		var session = _textEdit;
 
-		if (shape == null)
+		if (session == null)
 			return false;
 
-		// С запасом в несколько единиц: у надписи габариты обтягивают
-		// глифы, и щелчок чуть ниже хвостика буквы иначе выходил бы
-		// из правки вместо постановки каретки.
-		var bounds = shape.GetBounds();
+		var spots = TextEditGeometry.Spots(session);
 
-		bounds.Inflate(shape.FontSizeMm * 0.5f, shape.FontSizeMm * 0.5f);
+		float best = float.MaxValue;
+		float lineHeight = 0f;
 
-		return bounds.Contains(world.X, world.Y);
+		foreach (var spot in spots)
+		{
+			if (!spot.Valid)
+				continue;
+
+			lineHeight = MathF.Max(lineHeight, SKPoint.Distance(spot.Top, spot.Bottom));
+
+			float distance = DistanceToSegment(world, spot.Top, spot.Bottom);
+
+			if (distance < best)
+				best = distance;
+		}
+
+		if (best == float.MaxValue)
+			return false;
+
+		return best <= MathF.Max(lineHeight, 1f);
+	}
+
+	private static float DistanceToSegment(SKPoint p, SKPoint a, SKPoint b)
+	{
+		float dx = b.X - a.X;
+		float dy = b.Y - a.Y;
+
+		float lengthSquared = dx * dx + dy * dy;
+
+		if (lengthSquared < 1e-9f)
+			return SKPoint.Distance(p, a);
+
+		float t = ((p.X - a.X) * dx + (p.Y - a.Y) * dy) / lengthSquared;
+
+		t = Math.Clamp(t, 0f, 1f);
+
+		return SKPoint.Distance(p, new SKPoint(a.X + dx * t, a.Y + dy * t));
 	}
 
 	private void PlaceCaret(SKPoint world, bool extend)
@@ -206,9 +252,7 @@ public sealed partial class MainView
 		if (session == null)
 			return;
 
-		var local = session.Shape.WorldToLocal(world);
-
-		session.SetCaret(TextEditGeometry.IndexAt(session, local), extend);
+		session.SetCaret(TextEditGeometry.IndexAt(session, world), extend);
 
 		TouchCaret();
 		InvalidateCanvas();
@@ -268,9 +312,7 @@ public sealed partial class MainView
 		if (session == null || !HitsEditedText(world))
 			return false;
 
-		var local = session.Shape.WorldToLocal(world);
-
-		session.SelectWordAt(TextEditGeometry.IndexAt(session, local));
+		session.SelectWordAt(TextEditGeometry.IndexAt(session, world));
 
 		TouchCaret();
 		InvalidateCanvas();

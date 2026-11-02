@@ -5,11 +5,9 @@ namespace VDraw.Editing;
 /// <summary>
 /// Каретка и выделение текста поверх холста.
 ///
-/// Рисуется в экранных координатах, как и прочие указатели: надпись
-/// может быть повёрнута и масштабирована, и прямоугольник выделения
-/// вместе с ней перестаёт быть прямоугольником. Поэтому каждая
-/// область переводится из координат надписи в мировые, оттуда
-/// в экранные, и рисуется четырёхугольником, а не SKRect.
+/// Геометрию считает TextEditGeometry — и считает её в мировых
+/// координатах, уже с поворотом надписи и с изгибом кривой. Здесь
+/// остаётся перевести точки в экранные и нарисовать.
 /// </summary>
 public static class TextEditAdorner
 {
@@ -18,18 +16,15 @@ public static class TextEditAdorner
 
 	public static void Draw(SKCanvas canvas, MainView view, TextEditSession session)
 	{
-		var world = session.Shape.GetWorldTransform();
-
-		DrawSelection(canvas, view, session, world);
-		DrawCaret(canvas, view, session, world);
+		DrawSelection(canvas, view, session);
+		DrawCaret(canvas, view, session);
 	}
 
-	private static void DrawSelection(
-		SKCanvas canvas, MainView view, TextEditSession session, SKMatrix world)
+	private static void DrawSelection(SKCanvas canvas, MainView view, TextEditSession session)
 	{
-		var rects = TextEditGeometry.SelectionRects(session);
+		var quads = TextEditGeometry.SelectionQuads(session);
 
-		if (rects.Count == 0)
+		if (quads.Count == 0)
 			return;
 
 		using var paint = new SKPaint
@@ -39,30 +34,33 @@ public static class TextEditAdorner
 			Color = SelectionColor
 		};
 
-		foreach (var rect in rects)
+		foreach (var quad in quads)
 		{
 			using var path = new SKPath();
 
-			path.MoveTo(Screen(view, world, rect.Left, rect.Top));
-			path.LineTo(Screen(view, world, rect.Right, rect.Top));
-			path.LineTo(Screen(view, world, rect.Right, rect.Bottom));
-			path.LineTo(Screen(view, world, rect.Left, rect.Bottom));
+			path.MoveTo(view.PageToScreen(quad[0]));
+
+			for (int i = 1; i < quad.Length; i++)
+				path.LineTo(view.PageToScreen(quad[i]));
+
 			path.Close();
 
 			canvas.DrawPath(path, paint);
 		}
 	}
 
-	private static void DrawCaret(
-		SKCanvas canvas, MainView view, TextEditSession session, SKMatrix world)
+	private static void DrawCaret(SKCanvas canvas, MainView view, TextEditSession session)
 	{
 		if (!session.CaretVisible)
 			return;
 
-		var (top, bottom) = TextEditGeometry.CaretLine(session);
+		var segment = TextEditGeometry.CaretSegment(session);
 
-		var a = Screen(view, world, top.X, top.Y);
-		var b = Screen(view, world, bottom.X, bottom.Y);
+		if (segment == null)
+			return;
+
+		var a = view.PageToScreen(segment.Value.Top);
+		var b = view.PageToScreen(segment.Value.Bottom);
 
 		// Толщина в экранных точках, а не в единицах листа: каретка —
 		// указатель, и при мелком масштабе она должна остаться видимой,
@@ -78,7 +76,4 @@ public static class TextEditAdorner
 
 		canvas.DrawLine(a, b, paint);
 	}
-
-	private static SKPoint Screen(MainView view, SKMatrix world, float x, float y)
-		=> view.PageToScreen(world.MapPoint(new SKPoint(x, y)));
 }

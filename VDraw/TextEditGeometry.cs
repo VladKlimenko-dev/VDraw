@@ -7,96 +7,150 @@ namespace VDraw.Editing;
 /// <summary>
 /// Где на листе стоит каретка и что закрашено выделением.
 ///
-/// Вынесено из TextEditSession: там правила про символы и строки,
-/// здесь — пересчёт их в точки. Смешай одно с другим, и ни то,
-/// ни другое не прочитать.
+/// Всё сводится к одному понятию — МЕСТО КАРЕТКИ: отрезок поперёк
+/// строки, стоящий перед символом с таким номером. Мест на одно больше,
+/// чем символов: каретка стоит и после последнего.
 ///
-/// Считается по тем же продвижениям, какими текст и рисуется
-/// (TextGlyphs), иначе каретка вставала бы не туда, где потом
-/// появляется буква.
+/// Через места выражается и остальное. Каретка — место под её номером.
+/// Выделение — четырёхугольники между соседними местами. Попадание
+/// мыши — ближайшее место. Благодаря этому три совершенно разные
+/// раскладки — строки от начала координат, текст по фигуре с обтеканием
+/// и текст по кривой — разбираются одним и тем же кодом, и отличаются
+/// только тем, как считаются сами места.
+///
+/// Места считаются в МИРОВЫХ координатах: у текста по кривой буквы
+/// раскладываются по контуру чужой фигуры, который живёт в мире,
+/// и приводить всё к системе надписи пришлось бы ради одного случая
+/// из трёх.
 /// </summary>
 public static class TextEditGeometry
 {
-	/// <summary>Отрезок каретки в локальных координатах надписи.</summary>
-	public static (SKPoint Top, SKPoint Bottom) CaretLine(TextEditSession session)
+	/// <summary>Место каретки: отрезок сверху вниз и номер строки.</summary>
+	public readonly struct Spot
 	{
-		var shape = session.Shape;
-		var (line, column) = session.LineAndColumn(session.Caret);
+		public readonly SKPoint Top;
+		public readonly SKPoint Bottom;
 
-		using var font = shape.CreateEditFont();
+		/// <summary>Строка раскладки. Нужна выделению: оно не склеивает строки.</summary>
+		public readonly int Line;
 
-		float x = shape.LocalOrigin.X + ColumnOffset(font, shape, session.Lines()[line], column);
-		float baseline = shape.LocalOrigin.Y + line * shape.EditLineStep;
+		public readonly bool Valid;
 
-		var metrics = font.Metrics;
+		public Spot(SKPoint top, SKPoint bottom, int line)
+		{
+			Top = top;
+			Bottom = bottom;
+			Line = line;
+			Valid = true;
+		}
 
-		return (
-			new SKPoint(x, baseline + metrics.Ascent),
-			new SKPoint(x, baseline + metrics.Descent));
+		public SKPoint Middle => new((Top.X + Bottom.X) / 2f, (Top.Y + Bottom.Y) / 2f);
+	}
+
+	#region Наружу
+
+	public static (SKPoint Top, SKPoint Bottom)? CaretSegment(TextEditSession session)
+	{
+		var spots = Spots(session);
+
+		if (spots.Length == 0)
+			return null;
+
+		var spot = spots[Math.Clamp(session.Caret, 0, spots.Length - 1)];
+
+		return spot.Valid ? (spot.Top, spot.Bottom) : null;
 	}
 
 	/// <summary>
-	/// Прямоугольники выделения — по одному на каждую задетую строку.
+	/// Выделение четырёхугольниками: по одному на символ.
 	///
-	/// Пустая строка внутри выделения получает прямоугольник шириной
-	/// в полпробела: иначе выделенный перевод строки выглядел бы
-	/// пропуском, и было бы непонятно, что он тоже удалится.
+	/// По символу, а не по строке: вдоль кривой строка изгибается,
+	/// и одним четырёхугольником её не накрыть. На прямых строках
+	/// соседние четырёхугольники сходятся край в край и выглядят
+	/// сплошной полосой.
 	/// </summary>
-	public static List<SKRect> SelectionRects(TextEditSession session)
+	public static List<SKPoint[]> SelectionQuads(TextEditSession session)
 	{
-		var rects = new List<SKRect>();
+		var quads = new List<SKPoint[]>();
 
 		if (!session.HasSelection)
-			return rects;
+			return quads;
 
-		var shape = session.Shape;
-		var lines = session.Lines();
+		var spots = Spots(session);
 
-		using var font = shape.CreateEditFont();
+		int from = Math.Clamp(session.SelectionStart, 0, spots.Length - 1);
+		int to = Math.Clamp(session.SelectionEnd, 0, spots.Length - 1);
 
-		var metrics = font.Metrics;
-
-		int from = session.SelectionStart;
-		int to = session.SelectionEnd;
-
-		var (firstLine, firstColumn) = session.LineAndColumn(from);
-		var (lastLine, lastColumn) = session.LineAndColumn(to);
-
-		for (int line = firstLine; line <= lastLine; line++)
+		for (int i = from; i < to; i++)
 		{
-			string text = lines[line];
+			var a = spots[i];
+			var b = spots[i + 1];
 
-			int start = line == firstLine ? firstColumn : 0;
-			int end = line == lastLine ? lastColumn : text.Length;
+			if (!a.Valid || !b.Valid || a.Line != b.Line)
+				continue;
 
-			float left = shape.LocalOrigin.X + ColumnOffset(font, shape, text, start);
-			float right = shape.LocalOrigin.X + ColumnOffset(font, shape, text, end);
+			// Нулевой ширины не рисуем: это перевод строки или место,
+			// которому на раскладке не нашлось ширины.
+			if (SKPoint.Distance(a.Middle, b.Middle) < 0.0001f)
+				continue;
 
-			// Перевод строки сам по себе ширины не имеет, но в выделение
-			// входит: показываем его узкой полоской за концом строки.
-			if (line != lastLine)
-				right += font.Size * 0.3f;
-
-			float baseline = shape.LocalOrigin.Y + line * shape.EditLineStep;
-
-			rects.Add(new SKRect(
-				left,
-				baseline + metrics.Ascent,
-				right,
-				baseline + metrics.Descent));
+			quads.Add(new[] { a.Top, b.Top, b.Bottom, a.Bottom });
 		}
 
-		return rects;
+		return quads;
 	}
 
 	/// <summary>
-	/// Номер символа, на который показывает точка в локальных координатах.
+	/// Номер символа, на который показывает точка в мировых координатах.
 	///
-	/// Считается ближайшая ГРАНИЦА между символами, а не символ под
-	/// точкой: каретка стоит между буквами, и щелчок в правую половину
-	/// буквы должен ставить её справа от этой буквы.
+	/// Берётся ближайшее МЕСТО каретки, и расстояние считается до отрезка,
+	/// а не до его середины: отрезок — это высота строки, и щелчок внутри
+	/// строки оказывается ближе к её местам, чем к местам соседней,
+	/// независимо от того, насколько строки разнесены.
 	/// </summary>
-	public static int IndexAt(TextEditSession session, SKPoint local)
+	public static int IndexAt(TextEditSession session, SKPoint world)
+	{
+		var spots = Spots(session);
+
+		int best = 0;
+		float bestDistance = float.MaxValue;
+
+		for (int i = 0; i < spots.Length; i++)
+		{
+			if (!spots[i].Valid)
+				continue;
+
+			float distance = DistanceToSegment(world, spots[i].Top, spots[i].Bottom);
+
+			if (distance < bestDistance)
+			{
+				bestDistance = distance;
+				best = i;
+			}
+		}
+
+		return best;
+	}
+
+	#endregion
+
+	#region Места каретки
+
+	public static Spot[] Spots(TextEditSession session)
+	{
+		var shape = session.Shape;
+
+		if (shape.IsAreaText)
+			return AreaSpots(session);
+
+		if (shape.AlongShape && shape.otherShape != null)
+			return AlongSpots(session);
+
+		return PlainSpots(session);
+	}
+
+	/// <summary>Обычный текст: строки от начала координат надписи вниз.</summary>
+	private static Spot[] PlainSpots(TextEditSession session)
 	{
 		var shape = session.Shape;
 		var lines = session.Lines();
@@ -104,39 +158,163 @@ public static class TextEditGeometry
 		using var font = shape.CreateEditFont();
 
 		var metrics = font.Metrics;
-		float step = shape.EditLineStep;
+		var world = shape.GetWorldTransform();
 
-		// Верх первой строки: от базовой линии вверх на подъём шрифта
-		// (Ascent в Skia отрицателен).
-		float top = shape.LocalOrigin.Y + metrics.Ascent;
+		var spots = new Spot[session.Text.Length + 1];
 
-		int line = step > 0f ? (int)MathF.Floor((local.Y - top) / step) : 0;
+		int index = 0;
 
-		line = Math.Clamp(line, 0, lines.Count - 1);
-
-		string text = lines[line];
-		float x = local.X - shape.LocalOrigin.X;
-
-		int column = 0;
-		float previous = 0f;
-
-		while (column < text.Length)
+		for (int line = 0; line < lines.Count; line++)
 		{
-			float next = ColumnOffset(font, shape, text, column + 1);
+			float baseline = shape.LocalOrigin.Y + line * shape.EditLineStep;
 
-			// Через ту же меру, что и у каретки, а не через продвижение
-			// каждого символа по отдельности: шрифт сближает иные пары
-			// букв, и две меры разошлись бы — щелчок ставил бы каретку
-			// не туда, где она потом нарисуется.
-			if (x < (previous + next) / 2f)
-				break;
+			for (int column = 0; column <= lines[line].Length; column++)
+			{
+				float x = shape.LocalOrigin.X + ColumnOffset(font, shape, lines[line], column);
 
-			previous = next;
-			column++;
+				spots[index + column] = MakeSpot(world, x, baseline, metrics, line);
+			}
+
+			index += lines[line].Length + 1;
 		}
 
-		return session.LineStart(line) + column;
+		return spots;
 	}
+
+	/// <summary>
+	/// Текст по фигуре: строки берутся у раскладки, а их места
+	/// в исходном тексте — у привязки, которую раскладка оставила.
+	/// </summary>
+	private static Spot[] AreaSpots(TextEditSession session)
+	{
+		var shape = session.Shape;
+
+		var spots = new Spot[session.Text.Length + 1];
+		var layout = shape.BuildAreaLayoutForEdit();
+
+		if (layout == null || layout.Lines.Count == 0)
+			return spots;
+
+		using var font = shape.CreateEditFont();
+
+		var metrics = font.Metrics;
+		var world = shape.GetWorldTransform();
+
+		for (int line = 0; line < layout.Lines.Count; line++)
+		{
+			var placed = layout.Lines[line];
+
+			foreach (var run in placed.Runs)
+			{
+				// Место после куска тоже нужно: на конце слова каретка
+				// стоит справа от последней буквы, а это уже следующий
+				// по счёту номер.
+				for (int k = 0; k <= run.Length; k++)
+				{
+					int source = run.Source + k;
+
+					if (source < 0 || source >= spots.Length)
+						continue;
+
+					// Не затирать уже занятое: конец одного куска и начало
+					// следующего приходятся на один номер, и верным
+					// остаётся первый — он от своего куска.
+					if (spots[source].Valid && k == 0)
+						continue;
+
+					float x = placed.X + ColumnOffset(font, shape, placed.Text, run.Placed + k);
+
+					spots[source] = MakeSpot(world, x, placed.Baseline, metrics, line);
+				}
+			}
+		}
+
+		FillGaps(spots);
+
+		return spots;
+	}
+
+	/// <summary>
+	/// Места, которым раскладка ничего не сопоставила, получают место
+	/// соседа слева.
+	///
+	/// Это лишние пробелы между словами и текст, не влезший в фигуру:
+	/// на листе их не видно, но каретка по ним ходит, и пропадать ей
+	/// нельзя — иначе при наборе пробелов она исчезает, и набирающий
+	/// не понимает, куда попадёт следующая буква.
+	/// </summary>
+	private static void FillGaps(Spot[] spots)
+	{
+		Spot last = default;
+
+		for (int i = 0; i < spots.Length; i++)
+		{
+			if (spots[i].Valid)
+				last = spots[i];
+			else if (last.Valid)
+				spots[i] = last;
+		}
+
+		// Хвост заполнен, теперь начало: если текст начинается с пробелов,
+		// первым местам слева взять нечего.
+		Spot first = default;
+
+		for (int i = 0; i < spots.Length; i++)
+		{
+			if (spots[i].Valid)
+			{
+				first = spots[i];
+				break;
+			}
+		}
+
+		if (!first.Valid)
+			return;
+
+		for (int i = 0; i < spots.Length && !spots[i].Valid; i++)
+			spots[i] = first;
+	}
+
+	/// <summary>Текст по кривой: места считает сама надпись, они уже мировые.</summary>
+	private static Spot[] AlongSpots(TextEditSession session)
+	{
+		var spots = new Spot[session.Text.Length + 1];
+		var along = session.Shape.BuildAlongCaretSpots();
+
+		if (along == null)
+			return spots;
+
+		int index = 0;
+
+		var lines = session.Lines();
+
+		for (int line = 0; line < lines.Count; line++)
+		{
+			for (int column = 0; column <= lines[line].Length; column++)
+			{
+				int i = index + column;
+
+				if (i >= spots.Length || i >= along.Length || !along[i].Valid)
+					continue;
+
+				spots[i] = new Spot(along[i].Top, along[i].Bottom, line);
+			}
+
+			index += lines[line].Length + 1;
+		}
+
+		return spots;
+	}
+
+	private static Spot MakeSpot(SKMatrix world, float x, float baseline, SKFontMetrics metrics, int line)
+		=> new(
+			world.MapPoint(new SKPoint(x, baseline + metrics.Ascent)),
+			world.MapPoint(new SKPoint(x, baseline + metrics.Descent)),
+			line);
+
+	#endregion
+
+	#region Меры
 
 	/// <summary>Смещение начала символа от левого края строки.</summary>
 	private static float ColumnOffset(SKFont font, TextShape shape, string line, int column)
@@ -152,4 +330,23 @@ public static class TextEditGeometry
 		return TextGlyphs.Measure(font, line[..column], shape.CharacterSpacingMm)
 			+ shape.CharacterSpacingMm;
 	}
+
+	private static float DistanceToSegment(SKPoint p, SKPoint a, SKPoint b)
+	{
+		float dx = b.X - a.X;
+		float dy = b.Y - a.Y;
+
+		float lengthSquared = dx * dx + dy * dy;
+
+		if (lengthSquared < 1e-9f)
+			return SKPoint.Distance(p, a);
+
+		float t = ((p.X - a.X) * dx + (p.Y - a.Y) * dy) / lengthSquared;
+
+		t = Math.Clamp(t, 0f, 1f);
+
+		return SKPoint.Distance(p, new SKPoint(a.X + dx * t, a.Y + dy * t));
+	}
+
+	#endregion
 }
