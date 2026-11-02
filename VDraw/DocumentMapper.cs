@@ -81,6 +81,8 @@ public static class DocumentMapper
 		foreach (var custom in doc.CustomShapes)
 			dto.CustomShapes.Add(custom.ToDto());
 
+		dto.CustomColors.AddRange(doc.CustomColors);
+
 		return dto;
 	}
 
@@ -135,6 +137,9 @@ public static class DocumentMapper
 		doc.SelectionFilter = dto.SelectionFilter.HasValue
 			? (SelectionKinds)dto.SelectionFilter.Value
 			: SelectionKinds.All;
+
+		doc.CustomColors.Clear();
+		doc.CustomColors.AddRange(dto.CustomColors);
 
 		doc.CustomShapes.Clear();
 

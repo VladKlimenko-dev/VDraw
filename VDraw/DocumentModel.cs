@@ -250,6 +250,12 @@ public sealed class DocumentFileDto
 	/// правильно.
 	/// </summary>
 	public int? SelectionFilter { get; set; }
+
+	/// <summary>
+	/// Пользовательские цвета палитры. Пустой список у файлов, записанных
+	/// до появления этой возможности, — читаются они как прежде.
+	/// </summary>
+	public List<SKColor> CustomColors { get; set; } = new();
 }
 
 public sealed class FillPatternDto

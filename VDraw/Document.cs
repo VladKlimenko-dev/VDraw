@@ -93,6 +93,16 @@ public sealed partial class Document : PaperFormatData
 	/// </summary>
 	public SelectionKinds SelectionFilter { get; set; } = SelectionKinds.All;
 
+	/// <summary>
+	/// Цвета, добавленные пользователем в палитру диалога выбора цвета.
+	///
+	/// Живут в документе, а не в настройках приложения, по той же причине,
+	/// что и отбор объектов: подобранные под конкретный чертёж цвета нужны
+	/// в нём, а не во всех будущих. Вдобавок файл с чертежом тогда уезжает
+	/// получателю вместе со своей палитрой.
+	/// </summary>
+	public List<SKColor> CustomColors { get; } = new();
+
 	#region История действий
 
 	/// <summary>

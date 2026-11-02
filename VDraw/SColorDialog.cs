@@ -138,10 +138,75 @@ public partial class SColorDialog : Form
 			sample_but.Text = "\ue7ea";
 		}
 
-		colors = 23;
+		LoadCustomColors();
+		Refresh();
+	}
+
+	/// <summary>Сколько образцов занято готовой палитрой.</summary>
+	private const int PresetColorCount = 23;
+
+	/// <summary>Сколько цветов пользователь может добавить.</summary>
+	private int CustomColorCapacity => picture_boxes_x * picture_boxes_y - PresetColorCount;
+
+	/// <summary>
+	/// Заполняет свободные образцы цветами документа.
+	///
+	/// Образцы — это отображение списка в документе, а не отдельное
+	/// хранилище: при каждом изменении список перечитывается целиком,
+	/// и разойтись им негде.
+	/// </summary>
+	private void LoadCustomColors()
+	{
+		if (spb == null)
+			return;
+
+		colors = PresetColorCount;
+
 		for (int i = colors; i < picture_boxes_x * picture_boxes_y; i++)
 			spb[i].BackColor = Color.FromArgb(0, 0, 0, 0);
-		Refresh();
+
+		var doc = MainForm.cur_doc;
+
+		if (doc == null)
+			return;
+
+		foreach (var c in doc.CustomColors)
+		{
+			if (colors >= picture_boxes_x * picture_boxes_y)
+				break;
+
+			spb[colors].BackColor = Color.FromArgb(c.Alpha, c.Red, c.Green, c.Blue);
+			colors++;
+		}
+	}
+
+	/// <summary>
+	/// Запоминает цвет в документе. Возвращает false, если документа нет —
+	/// тогда цвет остаётся только в открытом диалоге.
+	///
+	/// Повтор не добавляется: образцов всего пятьдесят семь, и тратить их
+	/// на второй такой же цвет незачем. Когда места не осталось, уходит
+	/// самый старый — это привычнее, чем отказ добавить.
+	/// </summary>
+	private bool StoreCustomColor(Color value)
+	{
+		var doc = MainForm.cur_doc;
+
+		if (doc == null)
+			return false;
+
+		var sk = new SKColor(value.R, value.G, value.B, value.A);
+
+		if (doc.CustomColors.Contains(sk))
+			return true;
+
+		while (doc.CustomColors.Count >= CustomColorCapacity && doc.CustomColors.Count > 0)
+			doc.CustomColors.RemoveAt(0);
+
+		doc.CustomColors.Add(sk);
+		doc.need_save = true;
+
+		return true;
 	}
 
 	private void CustomColorBox_Paint(object? sender, PaintEventArgs e)
@@ -422,10 +487,22 @@ public partial class SColorDialog : Form
 
 	private void add_custom_color_but_Click(object? sender, EventArgs e)
 	{
-		spb[colors].BackColor = color;
+		if (StoreCustomColor(color))
+		{
+			LoadCustomColors();
+		}
+		else
+		{
+			// Документа нет — запоминать некуда, цвет живёт до закрытия
+			// диалога. Так ведёт себя диалог, открытый из настроек
+			// приложения при закрытом документе.
+			spb[colors].BackColor = color;
+
+			if (colors < picture_boxes_x * picture_boxes_y - 1)
+				colors++;
+		}
+
 		Refresh();
-		if (colors < picture_boxes_x * picture_boxes_y - 1)
-			colors++;
 	}
 
 	private void sample_but_Click(object sender, EventArgs e)
