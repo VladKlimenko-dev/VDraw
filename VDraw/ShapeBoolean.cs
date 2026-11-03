@@ -50,13 +50,6 @@ public static class ShapeBooleanHelper
 		if (operands.Count < 2)
 			return null;
 
-		// Subtract, Intersect и Exclude определены строго для двух фигур.
-		if (RequiresExactlyTwoOperands(kind))
-		{
-			if (operands.Count != 2)
-				return null;
-		}
-
 		CurveShape? result;
 
 		if (kind == ShapeBooleanKind.Combine)
@@ -101,11 +94,6 @@ public static class ShapeBooleanHelper
 
 		return result;
 	}
-
-	private static bool RequiresExactlyTwoOperands(ShapeBooleanKind kind)
-	=> kind is ShapeBooleanKind.Subtract
-			or ShapeBooleanKind.Intersect
-			or ShapeBooleanKind.Exclude;
 
 	private static string GetOperationName(ShapeBooleanKind kind) => kind switch
 	{
@@ -169,9 +157,34 @@ public static class ShapeBooleanHelper
 
 		bool anyAdded = false;
 
-		foreach (var shape in operands)
+		// Группа разбирается на содержимое: Combine сращивает КОНТУРЫ,
+		// и контуры группы — это контуры её фигур, каждый сам по себе.
+		// Своего пути у группы нет (её BuildLocalPath отдаёт габаритный
+		// прямоугольник), так что без разбора от неё остался бы один
+		// прямоугольник или вовсе ничего.
+		var leaves = operands
+			.SelectMany(EnumerateLeafShapes)
+			.Where(s => s != null && s.IsVisible)
+			.ToList();
+
+		foreach (var shape in leaves)
 		{
+			// Фигуры без своего преобразования в кривую — размеры, направляющие,
+			// массивы — переводятся через свой путь. Пользователь просил
+			// объединять любые выделенные фигуры, а не только те, у которых
+			// преобразование написано.
 			CurveShape? sourceCurve = shape as CurveShape ?? shape.ToCurveShape();
+
+			// Признак, а не свойство у кривой: узлы, собранные из пути,
+			// уже мировые, и переводить их координаты второй раз нельзя.
+			bool alreadyWorld = false;
+
+			if (sourceCurve == null)
+			{
+				sourceCurve = BuildWorldCurveFromPath(shape);
+				alreadyWorld = true;
+			}
+
 			if (sourceCurve == null || sourceCurve.Nodes.Count == 0)
 				continue;
 
@@ -186,14 +199,16 @@ public static class ShapeBooleanHelper
 				newNode.Selected = false;
 				newNode.Focused = false;
 
-				newNode.Position = shape.LocalToWorld(srcNode.Position);
+				newNode.Position = alreadyWorld
+					? srcNode.Position
+					: shape.LocalToWorld(srcNode.Position);
 
 				newNode.ControlPrev = srcNode.HasPrevControl
-					? shape.LocalToWorld(srcNode.ControlPrev)
+					? (alreadyWorld ? srcNode.ControlPrev : shape.LocalToWorld(srcNode.ControlPrev))
 					: new SKPoint(float.NaN, float.NaN);
 
 				newNode.ControlNext = srcNode.HasNextControl
-					? shape.LocalToWorld(srcNode.ControlNext)
+					? (alreadyWorld ? srcNode.ControlNext : shape.LocalToWorld(srcNode.ControlNext))
 					: new SKPoint(float.NaN, float.NaN);
 
 				// Флаги NewContour / BreakAfter / CloseAfter сохраняются:
@@ -219,6 +234,134 @@ public static class ShapeBooleanHelper
 		}
 
 		return anyAdded ? result : null;
+	}
+
+	/// <summary>
+	/// Кривая из пути фигуры, в МИРОВЫХ координатах.
+	///
+	/// Запасной путь для фигур, у которых своего преобразования в кривую
+	/// нет: размеры, угловые размеры, направляющие, массивы. Рисовать они
+	/// умеют, значит и путь у них есть, — из него и собираются узлы.
+	///
+	/// Замкнутость контуров берётся из самого пути, а не ставится
+	/// принудительно: у размерной линии контуры разомкнутые, и замкнув их,
+	/// Combine пририсовал бы к выносным линиям хорду.
+	/// </summary>
+	private static CurveShape? BuildWorldCurveFromPath(Shape shape)
+	{
+		using var path = shape.BuildWorldPath();
+
+		if (path == null || path.IsEmpty)
+			return null;
+
+		var contours = BuildClosureAwareContours(path);
+
+		if (contours.Count == 0)
+			return null;
+
+		var curve = new CurveShape { LocalTransform = SKMatrix.CreateIdentity() };
+
+		foreach (var (nodes, closed) in contours)
+		{
+			if (nodes.Count == 0)
+				continue;
+
+			int start = curve.Nodes.Count;
+
+			foreach (var node in nodes)
+				curve.Nodes.Add(node);
+
+			int end = curve.Nodes.Count - 1;
+
+			curve.Nodes[start].NewContour = true;
+
+			if (closed)
+				curve.Nodes[end].CloseAfter = true;
+			else
+				curve.Nodes[end].BreakAfter = true;
+		}
+
+		return curve.Nodes.Count > 0 ? curve : null;
+	}
+
+	/// <summary>
+	/// Контуры пути вместе с признаком замкнутости.
+	///
+	/// Отдельно от BuildContoursFromPath: тот обслуживает результат
+	/// SKPath.Op, где все контуры замкнуты по определению, и о замкнутости
+	/// не сообщает. Здесь путь произвольный, и признак нужен.
+	/// </summary>
+	private static List<(List<CurveNode> Nodes, bool Closed)> BuildClosureAwareContours(SKPath path)
+	{
+		var result = new List<(List<CurveNode>, bool)>();
+
+		// Путь делится по Move на отдельные подпути, каждый разбирается
+		// прежним кодом, а замкнутость определяется по наличию Close.
+		using var iter = path.CreateRawIterator();
+
+		var pts = new SKPoint[4];
+		SKPath? current = null;
+		bool closed = false;
+
+		void Flush()
+		{
+			if (current == null)
+				return;
+
+			if (!current.IsEmpty)
+			{
+				var contours = BuildContoursFromPath(current);
+
+				foreach (var nodes in contours)
+				{
+					if (nodes.Count > 0)
+						result.Add((nodes, closed));
+				}
+			}
+
+			current.Dispose();
+			current = null;
+			closed = false;
+		}
+
+		while (true)
+		{
+			var verb = iter.Next(pts);
+
+			switch (verb)
+			{
+				case SKPathVerb.Move:
+					Flush();
+					current = new SKPath();
+					current.MoveTo(pts[0]);
+					break;
+
+				case SKPathVerb.Line:
+					current?.LineTo(pts[1]);
+					break;
+
+				case SKPathVerb.Quad:
+					current?.QuadTo(pts[1], pts[2]);
+					break;
+
+				case SKPathVerb.Conic:
+					current?.ConicTo(pts[1], pts[2], iter.ConicWeight());
+					break;
+
+				case SKPathVerb.Cubic:
+					current?.CubicTo(pts[1], pts[2], pts[3]);
+					break;
+
+				case SKPathVerb.Close:
+					closed = true;
+					current?.Close();
+					break;
+
+				case SKPathVerb.Done:
+					Flush();
+					return result;
+			}
+		}
 	}
 
 	/// <summary>
@@ -311,14 +454,21 @@ public static class ShapeBooleanHelper
 
 		try
 		{
-			// Первая выбранная фигура — база. Для Subtract это A в A минус B.
+			// Первая выбранная фигура — база, остальные применяются к ней
+			// по очереди. Для любого числа фигур это даёт именно то, чего
+			// от операции ждут:
+			//
+			//   Union      — A ∪ B ∪ C: общий контур всех;
+			//   Subtract   — A − B − C: из первой вычитаются все остальные;
+			//   Intersect  — A ∩ B ∩ C: общая всем часть;
+			//   Exclude    — A ⊕ B ⊕ C: остаётся то, что покрыто нечётным
+			//                числом фигур, то есть при двух — всё, кроме
+			//                пересечения. Так же устроен Exclude в Corel
+			//                и Illustrator, и порядок применения на XOR
+			//                не влияет: операция ассоциативна.
 			SKPath? acc = new SKPath(paths[0]);
 
-			// Union определён для любого числа фигур, остальные операции
-			// принимают ровно два операнда (проверено в Apply).
-			int count = kind == ShapeBooleanKind.Union ? paths.Count : 2;
-
-			for (int i = 1; i < count && i < paths.Count; i++)
+			for (int i = 1; i < paths.Count; i++)
 			{
 				var merged = acc.Op(paths[i], op);
 
@@ -330,6 +480,12 @@ public static class ShapeBooleanHelper
 
 				acc.Dispose();
 				acc = merged;
+
+				// Пересечение могло выродиться: дальше вычитать или
+				// пересекать нечего, и лишние вызовы Op на пустом пути
+				// только тратят время.
+				if (acc.IsEmpty)
+					break;
 			}
 
 			return acc;
@@ -343,6 +499,50 @@ public static class ShapeBooleanHelper
 
 	private static SKPath? BuildOperandWorldPath(Shape shape)
 	{
+		// Группа своего пути не строит: её BuildLocalPath отдаёт габаритный
+		// прямоугольник, и операция над выделенной группой считалась бы
+		// по её рамке, а не по рисунку. Поэтому группа собирается из
+		// содержимого — все контуры в один путь, и Simplify сводит их
+		// к общему покрытию, то есть к объединению.
+		//
+		// Операнд остаётся ОДНИМ: иначе Intersect с группой означал бы
+		// пересечение со каждым её элементом по отдельности, а ждут
+		// пересечения с группой как с целым.
+		if (shape is GroupShape)
+		{
+			var combined = new SKPath { FillType = SKPathFillType.Winding };
+			bool any = false;
+
+			foreach (var leaf in EnumerateLeafShapes(shape))
+			{
+				if (!leaf.IsVisible)
+					continue;
+
+				using var leafPath = BuildOperandWorldPath(leaf);
+
+				if (leafPath == null || leafPath.IsEmpty)
+					continue;
+
+				combined.AddPath(leafPath);
+				any = true;
+			}
+
+			if (!any)
+			{
+				combined.Dispose();
+				return null;
+			}
+
+			var merged = combined.Simplify();
+
+			if (merged == null || merged.IsEmpty)
+				return combined;
+
+			combined.Dispose();
+
+			return merged;
+		}
+
 		Shape source = shape;
 
 		// Для всех не-Curve фигур переходим в каноническую кривую.
@@ -616,10 +816,32 @@ public static class ShapeBooleanHelper
 		}
 	}
 
+	/// <summary>
+	/// Коника в квадратичные кривые.
+	///
+	/// Разбиение делает сама Skia. Прежде здесь стояла «простая
+	/// аппроксимация одной дугой», то есть коника просто объявлялась
+	/// квадратичной, — а это разные кривые. Круг в Skia записан четырьмя
+	/// кониками по девяносто градусов, и после такой подмены он выходил
+	/// из логической операции заметно поджатым к центру: четверть круга
+	/// одной квадратичной не описывается.
+	/// </summary>
 	private static List<(SKPoint p0, SKPoint p1, SKPoint p2)> ConicToQuads(SKPoint p0, SKPoint p1, SKPoint p2, float w)
 	{
-		// Простая аппроксимация одной дугой-quad — достаточно для скруглений прямоугольников.
-		return new List<(SKPoint, SKPoint, SKPoint)> { (p0, p1, p2) };
+		var result = new List<(SKPoint, SKPoint, SKPoint)>();
+
+		// Степень два — четыре квадратичные на конику. Для дуги
+		// в девяносто градусов этого хватает с запасом: ошибка уходит
+		// далеко за точность, с которой узлы потом показываются.
+		var points = SKPath.ConvertConicToQuads(p0, p1, p2, w, 2);
+
+		for (int i = 0; i + 2 < points.Length; i += 2)
+			result.Add((points[i], points[i + 1], points[i + 2]));
+
+		if (result.Count == 0)
+			result.Add((p0, p1, p2));
+
+		return result;
 	}
 
 	private static List<CurveNode> BuildNodesFromSegments(List<PathSegment> segs)
@@ -708,8 +930,17 @@ public static class ShapeBooleanHelper
 					break;
 
 				case SKPathVerb.Conic:
-					result.Add(pts[2]);
-					break;
+					{
+						// Коника разбивается, а не заменяется своей конечной
+						// точкой: круг в Skia записан четырьмя кониками,
+						// и по четырём точкам распознать в нём эллипс нельзя.
+						var quads = ConicToQuads(pts[0], pts[1], pts[2], iter.ConicWeight());
+
+						foreach (var q in quads)
+							AppendQuadratic(result, q.p0, q.p1, q.p2, tolerance);
+
+						break;
+					}
 
 				case SKPathVerb.Cubic:
 					AppendCubic(result, pts[0], pts[1], pts[2], pts[3], tolerance);

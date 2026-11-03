@@ -33,7 +33,11 @@ public partial class MainForm
 	/// цифра 1 при правке узлов меняет тип узла, а в остальных режимах
 	/// остаётся свободной.
 	/// </summary>
-	private bool TryHandleShortcut(Keys keyData)
+	/// <summary>
+	/// <paramref name="source"/> — окно, получившее клавишу. Нужно, чтобы
+	/// отличить набор текста от команды: см. MainForm.IsTextEntryFocused.
+	/// </summary>
+	private bool TryHandleShortcut(Keys keyData, IntPtr source)
 	{
 		if (_mainView == null || cur_doc == null)
 			return false;
@@ -50,7 +54,7 @@ public partial class MainForm
 		// Пока идёт набор текста, поле забирает клавиатуру себе.
 		// Пропускаются только команды документа: Ctrl+S во время правки
 		// подписи должен сохранять документ, а не вставлять символ.
-		if (!action.AllowedWhileTyping && IsTextEntryFocused())
+		if (!action.AllowedWhileTyping && IsTextEntryFocused(source))
 			return false;
 
 		if (!ShortcutHandlers.TryGetValue(action.Id, out var handler))

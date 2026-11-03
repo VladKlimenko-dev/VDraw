@@ -675,11 +675,11 @@ public partial class MainForm : Form
 
 	private void SetBooleanToolTips()
 	{
-		toolTip.SetToolTip(s_union_but, L.T("Union  (Ctrl+Alt+U)\r\nMerges the selected shapes into one."));
-		toolTip.SetToolTip(s_substract_but, L.T("Subtract  (Ctrl+Alt+S)\r\nRemoves the upper shapes from the lower one."));
-		toolTip.SetToolTip(s_intersect_but, L.T("Intersect  (Ctrl+Alt+I)\r\nKeeps only the overlapping area."));
+		toolTip.SetToolTip(s_union_but, L.T("Union  (Ctrl+Alt+U)\r\nMerges the selected shapes into one. Two or more."));
+		toolTip.SetToolTip(s_substract_but, L.T("Subtract  (Ctrl+Alt+S)\r\nRemoves all the other selected shapes from the first one."));
+		toolTip.SetToolTip(s_intersect_but, L.T("Intersect  (Ctrl+Alt+I)\r\nKeeps the area shared by all the selected shapes."));
 		toolTip.SetToolTip(s_xor_but, L.T("Exclude  (Ctrl+Alt+X)\r\nKeeps everything except the overlapping area."));
-		toolTip.SetToolTip(s_combine_but, L.T("Combine  (Ctrl+Alt+C)\r\nJoins the shapes into one curve keeping separate contours."));
+		toolTip.SetToolTip(s_combine_but, L.T("Combine  (Ctrl+Alt+C)\r\nJoins the selected shapes into one curve keeping separate contours. Anything that is not a curve is converted."));
 		toolTip.SetToolTip(s_convert_to_curve_but, L.T("Convert to curve  (Ctrl+Q)\r\nTurns a primitive into an editable curve. The step cannot be reversed except by Undo."));
 		toolTip.SetToolTip(s_curve_edit_but, L.T("Edit nodes  (N)\r\nShows the nodes and control handles of the selected curve."));
 		toolTip.SetToolTip(s_scissors_line_but, L.T("Cut with a straight line  (K)"));
@@ -786,7 +786,13 @@ public partial class MainForm : Form
 	/// </summary>
 	protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
 	{
-		if (TryHandleShortcut(keyData))
+		// Окно, получившее клавишу, берётся из самого сообщения.
+		// Спрашивать его у формы нельзя: панель свойств и полосы
+		// инструментов — это окна Avalonia, которые WinForms не считает
+		// своими контролами, и ActiveControl остаётся на том контроле,
+		// что держал фокус до них. Из msg.HWnd же видно именно то окно,
+		// куда клавиша и пришла.
+		if (TryHandleShortcut(keyData, msg.HWnd))
 			return true;
 
 		return base.ProcessCmdKey(ref msg, keyData);
@@ -839,29 +845,57 @@ public partial class MainForm : Form
 
 
 	/// <summary>
-	/// Находится ли фокус в поле ввода.
+	/// Контрол, которому пришла клавиша.
 	///
-	/// Проверка делится на три части, потому что поля в приложении трёх
-	/// разных видов.
+	/// FromChildHandle, а не ActiveControl: он поднимается от окна,
+	/// получившего клавишу, вверх по дереву ОКОН до ближайшего контрола
+	/// WinForms. Для окна Avalonia это даёт хост, в котором оно живёт, —
+	/// а ActiveControl про такое окно не знает вовсе и показывает контрол,
+	/// державший фокус до него. Этим же способом WinForms и сама находит,
+	/// кому отдать ProcessCmdKey, так что ответ здесь тот же.
 	///
-	/// Поля Avalonia — панель свойств и полосы инструментов — для WinForms
-	/// неразличимы: фокус стоит на хосте, одном контроле на всю панель,
-	/// и переименование фигуры от нажатой кнопки по типу не отличить.
-	/// Поэтому поля отмечаются сами (AvTextInput), а здесь к их признаку
-	/// добавляется проверка, что фокус и правда на хосте Avalonia: если
-	/// хост почему-то не передаст полю потерю фокуса, признак останется
-	/// взведённым, и без этой оговорки сочетания перестали бы работать
-	/// во всём приложении.
-	///
-	/// Панели, рисующие свои поля сами, ищутся вверх по родителям,
-	/// а не сравниваются с контролом в фокусе: ActiveControl формы
-	/// указывает на САМЫЙ ГЛУБОКИЙ контрол с фокусом, то есть на хост
-	/// внутри панели, а не на саму панель. Из-за этого правка имени
-	/// фигуры или группы и считалась командой.
-	///
-	/// Обычные поля WinForms узнаются по типу.
+	/// Обход ActiveControl оставлен запасным путём: окно в сообщении
+	/// может оказаться чужим, и тогда лучше прежний ответ, чем никакой.
 	/// </summary>
-	private bool IsTextEntryFocused()
+	private Control? KeyTargetControl(IntPtr source)
+	{
+		if (source != IntPtr.Zero)
+		{
+			var owner = Control.FromChildHandle(source);
+
+			if (owner != null)
+				return owner;
+		}
+
+		Control? focused = this;
+
+		while (focused is ContainerControl container && container.ActiveControl != null)
+			focused = container.ActiveControl;
+
+		return focused;
+	}
+
+	/// <summary>
+	/// Идёт ли набор текста там, куда пришла клавиша.
+	///
+	/// Поля трёх разных видов, поэтому и проверок три.
+	///
+	/// Обычные поля WinForms узнаются по типу — они и есть контрол
+	/// с фокусом.
+	///
+	/// Поля Avalonia — панель свойств и полосы инструментов — по типу
+	/// неразличимы: контролом WinForms оказывается хост, один на всю
+	/// панель, и переименование фигуры от нажатой кнопки по нему
+	/// не отличить. Поэтому поля отмечаются сами (AvTextInput), а здесь
+	/// их признак читается, когда клавиша пришла именно в хост Avalonia.
+	/// Такая оговорка нужна: если хост почему-то не передаст полю потерю
+	/// фокуса, признак останется взведённым, и без неё сочетания
+	/// перестали бы работать во всём приложении.
+	///
+	/// Панели, рисующие свои поля сами, ищутся вверх по родителям:
+	/// клавиша приходит в саму панель, а поля внутри неё — не контролы.
+	/// </summary>
+	private bool IsTextEntryFocused(IntPtr source)
 	{
 		// Правка надписи прямо на листе — такой же набор текста, как
 		// в поле ввода: буква должна попадать в надпись, а не включать
@@ -869,26 +903,23 @@ public partial class MainForm : Form
 		if (_mainView != null && _mainView.IsTextEditing)
 			return true;
 
-		Control? focused = this;
+		var target = KeyTargetControl(source);
 
-		while (focused is ContainerControl container && container.ActiveControl != null)
-			focused = container.ActiveControl;
-
-		if (focused is Avalonia.Win32.Interoperability.WinFormsAvaloniaControlHost)
+		if (target is Avalonia.Win32.Interoperability.WinFormsAvaloniaControlHost)
 			return VDraw.Ui.Avalon.AvTextInput.IsFocused;
 
-		if (focused is TextBoxBase || focused is NumericUpDown)
+		if (target is TextBoxBase || target is NumericUpDown)
 			return true;
 
 		// Выпадающий список без поля ввода клавиатуру не занимает: по букве
 		// он лишь перескакивает на элемент, и инструмент важнее.
-		if (focused is System.Windows.Forms.ComboBox combo)
+		if (target is System.Windows.Forms.ComboBox combo)
 			return combo.DropDownStyle != ComboBoxStyle.DropDownList;
 
 		// Обход родителей — последним: обычное поле WinForms, если оно
 		// окажется внутри одной из этих панелей, должно отвечать за себя
 		// само, а не через признак панели.
-		for (Control? owner = focused; owner != null; owner = owner.Parent)
+		for (Control? owner = target; owner != null; owner = owner.Parent)
 		{
 			if (owner is AvPropertyPanelHost panel)
 				return panel.IsTextEditing;
@@ -1115,6 +1146,10 @@ public partial class MainForm : Form
 		HookUndoStack();
 
 		InitFileDrop();
+
+		// Страховка от застрявшего признака набора в полях Avalonia —
+		// см. AvTextInput.Clear.
+		_mainView.GotFocus += (_, _) => VDraw.Ui.Avalon.AvTextInput.Clear();
 
 		_propPanel = new AvPropertyPanelHost();
 		_mainView.SelectionChanged += (_, __) =>
@@ -5047,20 +5082,25 @@ public partial class MainForm : Form
 	}
 
 	/// <summary>
-	/// Гасит кнопки булевых операций по числу выделенных фигур.
-	/// Все пять определены ровно для двух операндов: у Subtract важен порядок
-	/// A минус B, а у Combine и Union первый операнд задаёт стиль и тип
-	/// результата, и с тремя фигурами это перестаёт быть очевидным.
+	/// Гасит кнопки логических операций по числу выделенных фигур.
+	///
+	/// Достаточно двух, но и больше двух — можно. Прежде требовалось ровно
+	/// две: считалось, что с тремя фигурами перестаёт быть очевидным,
+	/// что делает операция. На деле у всех пяти есть прямое продолжение
+	/// на любое число фигур, и первая выделенная остаётся базой — она
+	/// задаёт стиль и тип результата, а у Subtract ещё и то, из чего
+	/// вычитают. Что именно считает каждая операция, сказано
+	/// в ShapeBooleanHelper и в подсказках на кнопках.
 	/// </summary>
 	private void UpdateBooleanButtons()
 	{
-		bool exactlyTwo = (_mainView?.Selection?.Count ?? 0) == 2;
+		bool enough = (_mainView?.Selection?.Count ?? 0) >= 2;
 
-		s_combine_but.Enabled = exactlyTwo;
-		s_union_but.Enabled = exactlyTwo;
-		s_substract_but.Enabled = exactlyTwo;
-		s_intersect_but.Enabled = exactlyTwo;
-		s_xor_but.Enabled = exactlyTwo;
+		s_combine_but.Enabled = enough;
+		s_union_but.Enabled = enough;
+		s_substract_but.Enabled = enough;
+		s_intersect_but.Enabled = enough;
+		s_xor_but.Enabled = enough;
 	}
 	#endregion
 

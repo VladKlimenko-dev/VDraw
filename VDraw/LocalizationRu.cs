@@ -117,20 +117,20 @@ internal static class LocalizationRu
 
 		#region Подсказки: булевы операции
 
-		["Union  (Ctrl+Alt+U)\r\nMerges the selected shapes into one."] =
-			"Объединение  (Ctrl+Alt+U)\r\nСливает выделенные фигуры в одну.",
+		["Union  (Ctrl+Alt+U)\r\nMerges the selected shapes into one. Two or more."] =
+			"Объединение  (Ctrl+Alt+U)\r\nСливает выделенные фигуры в одну. Две и больше.",
 
-		["Subtract  (Ctrl+Alt+S)\r\nRemoves the upper shapes from the lower one."] =
-			"Вычитание  (Ctrl+Alt+S)\r\nУдаляет верхние фигуры из нижней.",
+		["Subtract  (Ctrl+Alt+S)\r\nRemoves all the other selected shapes from the first one."] =
+			"Вычитание  (Ctrl+Alt+S)\r\nВычитает из первой выделенной фигуры все остальные.",
 
-		["Intersect  (Ctrl+Alt+I)\r\nKeeps only the overlapping area."] =
-			"Пересечение  (Ctrl+Alt+I)\r\nОставляет только общую область.",
+		["Intersect  (Ctrl+Alt+I)\r\nKeeps the area shared by all the selected shapes."] =
+			"Пересечение  (Ctrl+Alt+I)\r\nОставляет область, общую для всех выделенных фигур.",
 
 		["Exclude  (Ctrl+Alt+X)\r\nKeeps everything except the overlapping area."] =
 			"Исключение  (Ctrl+Alt+X)\r\nОставляет всё, кроме общей области.",
 
-		["Combine  (Ctrl+Alt+C)\r\nJoins the shapes into one curve keeping separate contours."] =
-			"Соединение  (Ctrl+Alt+C)\r\nСобирает фигуры в одну кривую, сохраняя отдельные контуры.",
+		["Combine  (Ctrl+Alt+C)\r\nJoins the selected shapes into one curve keeping separate contours. Anything that is not a curve is converted."] =
+			"Соединение  (Ctrl+Alt+C)\r\nСобирает выделенные фигуры в одну кривую, сохраняя отдельные контуры. Что не кривая — преобразуется.",
 
 		#endregion
 
