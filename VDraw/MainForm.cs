@@ -841,10 +841,25 @@ public partial class MainForm : Form
 	/// <summary>
 	/// Находится ли фокус в поле ввода.
 	///
-	/// ActiveControl вложенных контейнеров приходится обходить вручную:
-	/// у формы он указывает на панель, а не на поле внутри неё.
-	/// Отдельная проверка для панели свойств — она рисует свои контролы сама,
-	/// и WinForms о её текстовых полях ничего не знает.
+	/// Проверка делится на три части, потому что поля в приложении трёх
+	/// разных видов.
+	///
+	/// Поля Avalonia — панель свойств и полосы инструментов — для WinForms
+	/// неразличимы: фокус стоит на хосте, одном контроле на всю панель,
+	/// и переименование фигуры от нажатой кнопки по типу не отличить.
+	/// Поэтому поля отмечаются сами (AvTextInput), а здесь к их признаку
+	/// добавляется проверка, что фокус и правда на хосте Avalonia: если
+	/// хост почему-то не передаст полю потерю фокуса, признак останется
+	/// взведённым, и без этой оговорки сочетания перестали бы работать
+	/// во всём приложении.
+	///
+	/// Панели, рисующие свои поля сами, ищутся вверх по родителям,
+	/// а не сравниваются с контролом в фокусе: ActiveControl формы
+	/// указывает на САМЫЙ ГЛУБОКИЙ контрол с фокусом, то есть на хост
+	/// внутри панели, а не на саму панель. Из-за этого правка имени
+	/// фигуры или группы и считалась командой.
+	///
+	/// Обычные поля WinForms узнаются по типу.
 	/// </summary>
 	private bool IsTextEntryFocused()
 	{
@@ -859,20 +874,32 @@ public partial class MainForm : Form
 		while (focused is ContainerControl container && container.ActiveControl != null)
 			focused = container.ActiveControl;
 
-		if (focused is AvPropertyPanelHost panel)
-			return panel.IsTextEditing;
+		if (focused is Avalonia.Win32.Interoperability.WinFormsAvaloniaControlHost)
+			return VDraw.Ui.Avalon.AvTextInput.IsFocused;
 
-		// Панель анимации тоже рисует свои поля сама: набор числа кадров
-		// не должен переключать инструменты.
-		if (focused is AnimationPanel animPanel)
-			return animPanel.IsTextEditing;
+		if (focused is TextBoxBase || focused is NumericUpDown)
+			return true;
 
 		// Выпадающий список без поля ввода клавиатуру не занимает: по букве
 		// он лишь перескакивает на элемент, и инструмент важнее.
 		if (focused is System.Windows.Forms.ComboBox combo)
 			return combo.DropDownStyle != ComboBoxStyle.DropDownList;
 
-		return focused is TextBoxBase || focused is NumericUpDown;
+		// Обход родителей — последним: обычное поле WinForms, если оно
+		// окажется внутри одной из этих панелей, должно отвечать за себя
+		// само, а не через признак панели.
+		for (Control? owner = focused; owner != null; owner = owner.Parent)
+		{
+			if (owner is AvPropertyPanelHost panel)
+				return panel.IsTextEditing;
+
+			// Панель анимации тоже рисует свои поля сама: набор числа
+			// кадров не должен переключать инструменты.
+			if (owner is AnimationPanel animPanel)
+				return animPanel.IsTextEditing;
+		}
+
+		return false;
 	}
 
 

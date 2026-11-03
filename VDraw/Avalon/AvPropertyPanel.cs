@@ -109,7 +109,16 @@ public sealed class AvPropertyPanel : UserControl
 	/// AvNumTextBox наследуется от AvTextBox и покрывается этой проверкой.
 	/// Выпадающий список сюда не входит: текст в нём не набирают.
 	/// </summary>
-	public bool IsTextEditing => _focused is AvTextBox;
+	/// <summary>
+	/// Идёт ли набор в одном из полей панели.
+	///
+	/// Числовые поля считаются такими же: цифра, набранная в поле размера,
+	/// не должна переключать инструмент. AvNumTextBox — наследник AvTextBox,
+	/// но назван отдельно нарочно, чтобы правка иерархии не выключила
+	/// проверку молча.
+	/// </summary>
+	public bool IsTextEditing
+		=> _focused is AvTextBox or AvNumTextBox or AvNumericUpDown;
 
 	/// <summary>
 	/// Готова ли панель к работе. Заменяет IsHandleCreated Skia-версии:

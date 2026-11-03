@@ -1150,9 +1150,22 @@ public class AvTextBox : TextBox
 		// Исходное значение запоминается при входе в поле: без него
 		// EditingFinished поднимался бы и тогда, когда пользователь просто
 		// прошёл по полю табуляцией, ничего не изменив.
-		GotFocus += (_, _) => _committed = Text ?? string.Empty;
+		GotFocus += (_, _) =>
+		{
+			_committed = Text ?? string.Empty;
 
-		LostFocus += (_, _) => FinishEditing();
+			// Поле отмечается само: главное окно перехватывает клавиши
+			// до контрола с фокусом, а поля Avalonia ему по типу не видны —
+			// см. AvTextInput.
+			AvTextInput.Entered(this);
+		};
+
+		LostFocus += (_, _) =>
+		{
+			AvTextInput.Left(this);
+
+			FinishEditing();
+		};
 	}
 
 	/// <summary>Применить набранное немедленно.</summary>
