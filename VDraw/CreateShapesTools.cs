@@ -541,6 +541,15 @@ public sealed class MultiPointShapeTool : IEditorTool
 {
 	public ShapeToolKind Kind { get; }
 
+	/// <summary>
+	/// Правой кнопкой завершают только многоугольники: остальные фигуры
+	/// этот инструмент строит заданным числом щелчков и завершается сам,
+	/// так что отбирать правую кнопку у панорамирования и меню ему
+	/// незачем. См. IEditorTool.
+	/// </summary>
+	public bool WantsRightClick =>
+		_points.Count > 0 && Kind is ShapeToolKind.Polygon or ShapeToolKind.FreePolygon;
+
 	private readonly List<SKPoint> _points = new();
 	private Shape? _previewShape;
 
@@ -818,6 +827,9 @@ public sealed class MultiPointShapeTool : IEditorTool
 
 public sealed class LineTool : IEditorTool
 {
+	/// <summary>Правой кнопкой завершают начатую ломаную — см. IEditorTool.</summary>
+	public bool WantsRightClick => _isCreating;
+
 	public ShapeToolKind Kind => ShapeToolKind.Line;
 
 	/// <summary>Минимальное расстояние между узлами, ниже которого клик считается повторным.</summary>
@@ -1013,6 +1025,9 @@ public sealed class LineTool : IEditorTool
 
 public sealed class CurveTool : IEditorTool
 {
+	/// <summary>Правой кнопкой завершают начатую кривую — см. IEditorTool.</summary>
+	public bool WantsRightClick => _isCreating;
+
 	public ShapeToolKind Kind => ShapeToolKind.Curve;
 
 	/// <summary>Минимальное расстояние между узлами, ниже которого клик считается повторным.</summary>

@@ -47,6 +47,15 @@ public sealed partial class MainView : SKGLControl
 	/// бы без меню.
 	/// </summary>
 	private bool _panMoved;
+
+	/// <summary>
+	/// Правую кнопку на нажатии забрал инструмент, который ею завершает
+	/// построение. Отпускание должно уйти туда же, минуя панорамирование
+	/// и контекстное меню: иначе меню выскакивало бы сразу после
+	/// завершённого построения.
+	/// </summary>
+	private bool _rightClickTakenByTool;
+
 	private Point _panStartMouse;
 	private SKPoint _panStartZero;
 
@@ -2130,6 +2139,12 @@ public sealed partial class MainView : SKGLControl
 		// Commit в OnMouseUp уже не хватило бы, чтобы её закрыть.
 		CloseStaleUndoGroup();
 
+		// Признак сбрасывается здесь, а не только на отпускании: нажатие
+		// без парного отпускания — обычное дело (модальное окно, потеря
+		// перехвата мыши), и застрявший признак отправил бы инструменту
+		// чужое отпускание.
+		_rightClickTakenByTool = false;
+
 		base.OnMouseDown(e);
 		Focus();
 		UpdateModifierKeys();
@@ -2290,6 +2305,34 @@ public sealed partial class MainView : SKGLControl
 		}
 
 		#endregion
+
+		// Инструмент, который сейчас что-то строит, получает правую кнопку
+		// первым — раньше панорамирования и раньше контекстного меню.
+		// Почему именно так, сказано у IEditorTool.WantsRightClick.
+		if (e.Button == MouseButtons.Right
+			&& _interaction.CurrentTool != ShapeToolKind.Select
+			&& _interaction.ToolHandler is { WantsRightClick: true })
+		{
+			// Отпускание той же кнопки инструмент получит в обход
+			// панорамирования и меню — иначе меню выскочило бы сразу
+			// после завершённого построения.
+			_rightClickTakenByTool = true;
+
+			// Как и у обычной ветки инструментов: попадание под курсором
+			// правой кнопке не нужно, а оставленное от прошлого нажатия
+			// ввело бы в заблуждение всё, что его читает.
+			_interaction.MouseDownHit = HitResult.None;
+
+			BeginUndoGroup("Create shape");
+
+			WithSelectionUndo(() =>
+				_interaction.ToolHandler?.OnMouseDown(this, _interaction, world, e.Button));
+
+			CommitUndoGroup();
+
+			InvalidateCanvas();
+			return;
+		}
 
 		// Кнопка панорамирования настраиваемая, см. MouseBindings.
 		if (MouseBindings.Matches(MouseBindings.Pan, e.Button, ModifierKeys))
@@ -2627,6 +2670,18 @@ public sealed partial class MainView : SKGLControl
 
 				SelectionGeometryChanged?.Invoke();
 				UpdateScrollBars();
+				InvalidateCanvas();
+				return;
+			}
+
+			// Правую кнопку забрал инструмент на нажатии — отпускание
+			// идёт туда же, минуя панорамирование и меню.
+			if (_rightClickTakenByTool && e.Button == MouseButtons.Right)
+			{
+				_rightClickTakenByTool = false;
+
+				_interaction.ToolHandler?.OnMouseUp(this, _interaction, world, e.Button);
+
 				InvalidateCanvas();
 				return;
 			}

@@ -756,6 +756,26 @@ public interface IEditorTool
 {
 	ShapeToolKind Kind { get; }
 
+	/// <summary>
+	/// Нужна ли инструменту правая кнопка ПРЯМО СЕЙЧАС.
+	///
+	/// Истина, пока инструмент что-то строит и правой кнопкой это
+	/// построение завершают или отменяют. Такой инструмент получает
+	/// правую кнопку первым — раньше панорамирования и раньше
+	/// контекстного меню.
+	///
+	/// В этом порядке и была поломка. Панорамирование стало настраиваемым,
+	/// и стоит назначить его на правую кнопку, как нажатие уходило
+	/// в протяжку вида, а отпускание — в контекстное меню; завершить
+	/// построение ломаной или кривой было уже нечем, хотя сами инструменты
+	/// правую кнопку разбирать умеют.
+	///
+	/// Признак именно «сейчас», а не «умею вообще»: пока инструмент
+	/// выбран, но ничего не строит, правая кнопка должна открывать меню,
+	/// как и всегда. Значение по умолчанию — ложь.
+	/// </summary>
+	bool WantsRightClick => false;
+
 	void OnMouseDown(MainView view, EditorInteractionContext ctx, SKPoint pagePoint, MouseButtons button);
 	void OnMouseMove(MainView view, EditorInteractionContext ctx, SKPoint pagePoint);
 	void OnMouseUp(MainView view, EditorInteractionContext ctx, SKPoint pagePoint, MouseButtons button);
@@ -4491,6 +4511,9 @@ public sealed class AdjustTextAlongShapeAyOperation : DragOperation
 /// </summary>
 public sealed class MeasureTool : IEditorTool
 {
+	/// <summary>Правой кнопкой начатое построение отменяют — см. IEditorTool.</summary>
+	public bool WantsRightClick => _clickCount > 0;
+
 	#region Константы
 
 	/// <summary>Вынос подписи по умолчанию, пока третий щелчок не сделан.</summary>
@@ -5120,6 +5143,9 @@ public sealed class MeasureTool : IEditorTool
 /// </summary>
 public sealed class MeasureAngleTool : IEditorTool
 {
+	/// <summary>Правой кнопкой начатое построение отменяют — см. IEditorTool.</summary>
+	public bool WantsRightClick => _vectorsDone > 0 || _hasPendingPoint;
+
 	#region Константы
 
 	/// <summary>Радиус дуги по умолчанию, пока последний щелчок не сделан.</summary>

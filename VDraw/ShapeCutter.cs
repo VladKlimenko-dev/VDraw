@@ -36,6 +36,9 @@ namespace VDraw.Editing;
 /// </summary>
 public abstract class ScissorsToolBase : IEditorTool
 {
+	/// <summary>Правой кнопкой отменяют начатый разрез — см. IEditorTool.</summary>
+	public bool WantsRightClick => IsDrawing || Points.Count > 0;
+
 	/// <summary>Цвет линии разреза — бордовый, как заказано.</summary>
 	private static readonly SKColor CutColor = new SKColor(128, 0, 32);
 
